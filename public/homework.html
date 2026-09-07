@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Homework & Submission - ClassSync</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="navbar-container"></div>
+
+  <div class="container">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title" id="hw-title">Homework Details</h1>
+        <p class="card-subtitle" id="hw-meta">Loading homework details...</p>
+      </div>
+      <div style="display:flex; gap:0.5rem;">
+        <a href="#" id="back-to-classroom-btn" class="btn btn-outline">← Back to Classroom</a>
+        <button class="btn btn-primary staff-only" id="open-add-q-btn" style="display:none;">+ Add Question</button>
+      </div>
+    </div>
+
+    <!-- Questions Container -->
+    <div id="questions-container">
+      <p>Loading questions...</p>
+    </div>
+  </div>
+
+  <!-- Add Question Modal (Instructor/TA) -->
+  <div class="modal" id="add-q-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add Question to Homework</h3>
+        <button class="modal-close" id="close-add-q-modal">&times;</button>
+      </div>
+      <form id="add-q-form">
+        <div class="form-group">
+          <label>Question Type *</label>
+          <select id="q-type" class="form-control">
+            <option value="text">Code / SQL / Text</option>
+            <option value="link">URL / Web Link</option>
+            <option value="pdf">PDF File URL</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Question Prompt / Text *</label>
+          <textarea id="q-text" class="form-control" required></textarea>
+        </div>
+        <div class="form-group">
+          <label>Points *</label>
+          <input type="number" id="q-points" class="form-control" value="10" required>
+        </div>
+        <div class="form-group">
+          <label>Order Number</label>
+          <input type="number" id="q-order" class="form-control" value="1">
+        </div>
+        <hr style="margin: 1rem 0;">
+        <h4>Instructor Answer Key (Optional)</h4>
+        <div class="form-group">
+          <label>Solution / Answer Text</label>
+          <textarea id="q-ans-text" class="form-control" placeholder="Visible to learners only after their submission"></textarea>
+        </div>
+        <div style="text-align: right; margin-top: 1rem;">
+          <button type="submit" class="btn btn-primary">Add Question</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Grade & Inline Review Modal (Instructor/TA) -->
+  <div class="modal" id="grade-modal">
+    <div class="modal-content" style="max-width: 700px;">
+      <div class="modal-header">
+        <h3>Grade & Review Submission</h3>
+        <button class="modal-close" id="close-grade-modal">&times;</button>
+      </div>
+      <div>
+        <div class="card-subtitle" id="grade-learner-info">Learner Submission</div>
+        <div class="code-box" id="grade-code-view">No code content</div>
+
+        <!-- Existing Inline Comments -->
+        <div style="margin-bottom: 1rem;">
+          <h4>Inline Line Reviews</h4>
+          <div id="inline-reviews-list">No line comments yet.</div>
+        </div>
+
+        <!-- Add Inline Comment Form -->
+        <form id="add-review-form" style="background:#f8fafc; padding:0.75rem; border-radius:6px; margin-bottom:1rem;">
+          <div style="display:flex; gap:0.5rem; margin-bottom:0.5rem;">
+            <input type="number" id="rev-line-start" class="form-control" placeholder="Start Line #" required style="width:120px;">
+            <input type="number" id="rev-line-end" class="form-control" placeholder="End Line #" required style="width:120px;">
+          </div>
+          <input type="text" id="rev-comment" class="form-control" placeholder="Line review comment..." required>
+          <button type="submit" class="btn btn-outline btn-sm" style="margin-top:0.5rem;">Add Line Review</button>
+        </form>
+
+        <hr style="margin:1rem 0;">
+
+        <!-- Main Grade Form -->
+        <form id="submit-grade-form">
+          <div class="form-group">
+            <label>Score (Points)</label>
+            <input type="number" step="0.5" id="grade-score" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label>Feedback</label>
+            <textarea id="grade-feedback" class="form-control"></textarea>
+          </div>
+          <div class="form-group">
+            <label><input type="checkbox" id="grade-draft"> Save as Draft (don't notify learner)</label>
+          </div>
+          <div style="text-align: right;">
+            <button type="submit" class="btn btn-primary">Save & Post Grade</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/navbar.js"></script>
+  <script src="/js/homework.js"></script>
+</body>
+</html>

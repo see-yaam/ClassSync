@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Problem Bank - ClassSync</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="navbar-container"></div>
+
+  <div class="container">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title" id="prob-bank-title">Classroom Problem Bank</h1>
+        <p class="card-subtitle" id="prob-bank-meta">Categorized practice problems & solution repository</p>
+      </div>
+      <div style="display:flex; gap:0.5rem;">
+        <a href="#" id="back-to-classroom-btn" class="btn btn-outline">← Back to Classroom</a>
+        <button class="btn btn-primary staff-only" id="open-add-prob-btn" style="display:none;">+ Add Problem</button>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card" style="margin-bottom: 1.5rem; padding: 0.75rem 1.25rem;">
+      <div style="display:flex; gap:1rem; align-items:center;">
+        <div>
+          <label style="font-size:0.85rem; font-weight:600;">Difficulty Filter:</label>
+          <select id="filter-diff" class="form-control" style="width:auto; display:inline-block;">
+            <option value="">All Difficulties</option>
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Categorized Problems Grid -->
+    <div id="problems-grouped-container">
+      <p>Loading problems...</p>
+    </div>
+  </div>
+
+  <!-- Add Problem Modal (Instructor/TA) -->
+  <div class="modal" id="add-prob-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add Problem to Problem Bank</h3>
+        <button class="modal-close" id="close-add-prob-modal">&times;</button>
+      </div>
+      <form id="add-prob-form">
+        <div class="form-group">
+          <label>Category *</label>
+          <input type="text" id="prob-category" class="form-control" placeholder="e.g. SQL Joins, Normalization, Relational Algebra" required>
+        </div>
+        <div class="form-group">
+          <label>Problem Title *</label>
+          <input type="text" id="prob-title-input" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label>Difficulty *</label>
+          <select id="prob-diff" class="form-control" required>
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Problem Description *</label>
+          <textarea id="prob-desc-input" class="form-control" required></textarea>
+        </div>
+        <div style="text-align: right;">
+          <button type="submit" class="btn btn-primary">Save Problem</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Solution View/Edit Modal -->
+  <div class="modal" id="solution-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="sol-prob-title">Problem Solution</h3>
+        <button class="modal-close" id="close-sol-modal">&times;</button>
+      </div>
+      <div>
+        <div style="margin-bottom:1rem;" id="sol-prob-desc"></div>
+
+        <div style="background:#f1f5f9; padding:1rem; border-radius:6px; margin-bottom:1rem;">
+          <h4>Instructor Solution</h4>
+          <div class="code-box" id="sol-view-box">No official solution uploaded yet.</div>
+        </div>
+
+        <!-- Instructor Solution Upsert Form -->
+        <form id="save-solution-form" class="staff-only" style="display:none; border-top:1px solid var(--border-color); padding-top:1rem;">
+          <h4>Update Solution (Instructor Only)</h4>
+          <div class="form-group">
+            <textarea id="sol-text-input" class="form-control" placeholder="Enter solution code / explanation..."></textarea>
+          </div>
+          <div style="text-align: right;">
+            <button type="submit" class="btn btn-primary btn-sm">Save Official Solution</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/navbar.js"></script>
+  <script src="/js/problems.js"></script>
+</body>
+</html>

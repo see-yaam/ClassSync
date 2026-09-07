@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Classroom Leaderboard - ClassSync</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="navbar-container"></div>
+
+  <div class="container">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">🏆 Classroom Leaderboard & Streaks</h1>
+        <p class="card-subtitle">Total score ranking & consecutive full-mark streak system</p>
+      </div>
+      <a href="#" id="back-to-classroom-btn" class="btn btn-outline">← Back to Classroom</a>
+    </div>
+
+    <div class="table-responsive">
+      <table id="leaderboard-table">
+        <thead>
+          <tr>
+            <th style="width:70px;">Rank</th>
+            <th>Learner</th>
+            <th>Total Points Earned</th>
+            <th>Full-Mark Streak</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="4">Loading leaderboard standings...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/navbar.js"></script>
+  <script src="/js/leaderboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - ClassSync</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="navbar-container"></div>
+
+  <div class="container">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Classroom Dashboard</h1>
+        <p class="card-subtitle">Manage your classrooms, assignments, and submissions</p>
+      </div>
+      <div style="display: flex; gap: 0.5rem;">
+        <button class="btn btn-outline" id="open-join-modal-btn">➕ Join Classroom</button>
+        <button class="btn btn-primary" id="open-create-modal-btn">✨ Create Classroom</button>
+      </div>
+    </div>
+
+    <!-- Instructor Section -->
+    <div style="margin-bottom: 2rem;">
+      <h2 style="font-size: 1.2rem; margin-bottom: 1rem;">👨‍🏫 Classrooms You Teach (Instructor)</h2>
+      <div class="grid" id="instructor-classrooms-grid">
+        <div class="card"><p>Loading classrooms...</p></div>
+      </div>
+    </div>
+
+    <!-- Learner / TA Section -->
+    <div>
+      <h2 style="font-size: 1.2rem; margin-bottom: 1rem;">🎓 Classrooms You Joined (Learner / TA)</h2>
+      <div class="grid" id="joined-classrooms-grid">
+        <div class="card"><p>Loading classrooms...</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Classroom Modal -->
+  <div class="modal" id="create-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Create New Classroom</h3>
+        <button class="modal-close" id="close-create-modal">&times;</button>
+      </div>
+      <form id="create-classroom-form">
+        <div class="form-group">
+          <label for="create-name">Classroom Name *</label>
+          <input type="text" id="create-name" class="form-control" placeholder="e.g. CSE 3522: DBMS Lab" required>
+        </div>
+        <div class="form-group">
+          <label for="create-desc">Description</label>
+          <textarea id="create-desc" class="form-control" placeholder="Course section, schedule, etc."></textarea>
+        </div>
+        <div style="text-align: right; margin-top: 1rem;">
+          <button type="submit" class="btn btn-primary">Create Classroom</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Join Classroom Modal -->
+  <div class="modal" id="join-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Join Classroom</h3>
+        <button class="modal-close" id="close-join-modal">&times;</button>
+      </div>
+      <form id="join-classroom-form">
+        <div class="form-group">
+          <label for="join-room-num">Room Number *</label>
+          <input type="text" id="join-room-num" class="form-control" placeholder="e.g. ROOM-123456" required>
+        </div>
+        <div class="form-group">
+          <label for="join-room-pass">Room Password *</label>
+          <input type="password" id="join-room-pass" class="form-control" placeholder="Room Password" required>
+        </div>
+        <div style="text-align: right; margin-top: 1rem;">
+          <button type="submit" class="btn btn-primary">Join Classroom</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/navbar.js"></script>
+  <script src="/js/index.js"></script>
+</body>
+</html>

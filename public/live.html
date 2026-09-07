@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Class Session - ClassSync</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="navbar-container"></div>
+
+  <div class="container">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title" id="session-title-header">Live Session</h1>
+        <p class="card-subtitle" id="session-meta">Loading session information...</p>
+      </div>
+      <a href="#" id="back-to-classroom-btn" class="btn btn-outline">← Back to Classroom</a>
+    </div>
+
+    <!-- Attendance Tracker Status Pill -->
+    <div class="card" style="margin-bottom: 1.5rem; background: #eff6ff; border-color: #bfdbfe;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <strong>⏱️ Active Live Attendance Tracker:</strong>
+          <span id="tracker-timer">0 mins 0 secs</span> logged in session.
+        </div>
+        <div id="attendance-status-badge">
+          <span class="badge badge-yellow">Threshold Check In Progress (< 75%)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Jitsi Meet Frame -->
+    <div class="card" style="padding: 0; overflow: hidden; margin-bottom: 2rem;">
+      <div style="background:#0f172a; color:#fff; padding:0.75rem 1rem; font-weight:600; display:flex; justify-content:space-between;">
+        <span>🎥 Embedded Jitsi Classroom Stream</span>
+        <span id="jitsi-room-name-tag">Room ID: ...</span>
+      </div>
+      <iframe id="jitsi-frame" style="width:100%; height:550px; border:none;" allow="camera; microphone; display-capture; autoplay"></iframe>
+    </div>
+
+    <!-- Attendance Roster & Instructor Override -->
+    <div class="card">
+      <h3 style="margin-bottom:1rem;">📋 Class Session Attendance Log</h3>
+      <div id="attendance-log-table" class="table-responsive">
+        <p>Loading attendance log...</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/navbar.js"></script>
+  <script src="/js/live.js"></script>
+</body>
+</html>
