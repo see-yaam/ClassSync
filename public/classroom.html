@@ -4,137 +4,162 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Classroom Details - ClassSync</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
   <div id="navbar-container"></div>
 
-  <div class="container">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title" id="classroom-title">Classroom Detail</h1>
-        <p class="card-subtitle" id="classroom-subtitle">Loading classroom information...</p>
-      </div>
-      <div style="display: flex; gap: 0.5rem;" id="header-actions">
-        <a href="/problems.html" id="prob-bank-link" class="btn btn-outline">Problem Bank</a>
-        <a href="/leaderboard.html" id="leaderboard-link" class="btn btn-outline">🏆 Leaderboard</a>
-      </div>
-    </div>
+  <div class="classroom-layout">
+    <!-- LEFT SIDEBAR NAVIGATION -->
+    <aside class="sidebar">
+      <nav class="sidebar-nav">
+        <button class="sidebar-item active" data-tab="tab-homework">
+          <i class="fa-solid fa-book-open"></i> <span>Homework Sets</span>
+        </button>
+        <button class="sidebar-item" data-tab="tab-matrix">
+          <i class="fa-solid fa-table-cells"></i> <span>Submission Matrix</span>
+        </button>
+        <button class="sidebar-item" data-tab="tab-health">
+          <i class="fa-solid fa-heart-pulse"></i> <span>Class Health</span>
+        </button>
+        <button class="sidebar-item" data-tab="tab-members">
+          <i class="fa-solid fa-users"></i> <span>Members & TA</span>
+        </button>
+        <button class="sidebar-item" data-tab="tab-resources">
+          <i class="fa-solid fa-link"></i> <span>Resources</span>
+        </button>
+        <button class="sidebar-item" data-tab="tab-alerts">
+          <i class="fa-solid fa-triangle-exclamation"></i> <span>Learner Alerts</span>
+        </button>
+        <button class="sidebar-item" data-tab="tab-live">
+          <i class="fa-solid fa-video"></i> <span>Live Sessions</span>
+        </button>
+        <button class="sidebar-item" data-tab="tab-plagiarism">
+          <i class="fa-solid fa-magnifying-glass-chart"></i> <span>Plagiarism Scan</span>
+        </button>
+      </nav>
+    </aside>
 
-    <!-- Navigation Tabs -->
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="tab-homework">📚 Homework Sets</button>
-      <button class="tab-btn" data-tab="tab-matrix">📊 Submission Matrix</button>
-      <button class="tab-btn" data-tab="tab-health">❤️ Class Health</button>
-      <button class="tab-btn" data-tab="tab-members">👥 Members & TA</button>
-      <button class="tab-btn" data-tab="tab-resources">🔗 Resources</button>
-      <button class="tab-btn" data-tab="tab-alerts">⚠️ Learner Alerts</button>
-      <button class="tab-btn" data-tab="tab-live">🎥 Live Sessions</button>
-      <button class="tab-btn" data-tab="tab-plagiarism">🔍 Plagiarism Scan</button>
-    </div>
-
-    <!-- TAB 1: HOMEWORK -->
-    <div class="tab-content active" id="tab-homework">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <h3>Homework Assignments</h3>
-        <button class="btn btn-primary staff-only" id="open-create-hw-btn" style="display:none;">+ Create Homework</button>
-      </div>
-      <div id="homework-list" class="grid">
-        <div class="card"><p>Loading homework...</p></div>
-      </div>
-    </div>
-
-    <!-- TAB 2: SUBMISSION MATRIX -->
-    <div class="tab-content" id="tab-matrix">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <h3>Submission Matrix (Pivot Table: Students × Tasks)</h3>
-        <select id="matrix-hw-select" class="form-control" style="width: auto;">
-          <option value="">Select Homework Set</option>
-        </select>
-      </div>
-      <div id="matrix-container" class="table-responsive">
-        <p class="card-subtitle">Select a homework set to view submission matrix.</p>
-      </div>
-    </div>
-
-    <!-- TAB 3: CLASS HEALTH -->
-    <div class="tab-content" id="tab-health">
-      <h3>Class Health Dashboard Overview</h3>
-      <div class="grid" style="margin-top: 1rem;">
-        <div class="card">
-          <div class="card-subtitle">Late Submission Rate</div>
-          <div style="font-size: 2rem; font-weight: bold; color: var(--status-orange);" id="health-late-rate">0%</div>
-          <p id="health-late-desc">0 of 0 submissions</p>
+    <!-- MAIN CLASSROOM CONTENT AREA -->
+    <main class="classroom-content">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title" id="classroom-title">Classroom Detail</h1>
+          <p class="card-subtitle" id="classroom-subtitle">Loading classroom information...</p>
         </div>
-        <div class="card">
-          <div class="card-subtitle">Live Attendance Rate</div>
-          <div style="font-size: 2rem; font-weight: bold; color: var(--status-green);" id="health-att-rate">0%</div>
-          <p id="health-att-desc">Based on session threshold</p>
-        </div>
-        <div class="card">
-          <div class="card-subtitle">At-Risk Learners Count</div>
-          <div style="font-size: 2rem; font-weight: bold; color: var(--status-red);" id="health-risk-count">0</div>
-          <p>Require intervention / alerts</p>
+        <div style="display: flex; gap: 0.5rem;" id="header-actions">
+          <a href="/problems.html" id="prob-bank-link" class="btn btn-outline"><i class="fa-solid fa-folder-closed"></i> Problem Bank</a>
+          <a href="/leaderboard.html" id="leaderboard-link" class="btn btn-outline"><i class="fa-solid fa-trophy"></i> Leaderboard</a>
         </div>
       </div>
 
-      <h4 style="margin-top: 2rem; margin-bottom: 1rem;">🚨 Identified At-Risk Learners</h4>
-      <div id="at-risk-learners-list" class="table-responsive">
-        <p>Loading health analytics...</p>
+      <!-- TAB 1: HOMEWORK -->
+      <div class="tab-content active" id="tab-homework">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h3>Homework Assignments</h3>
+          <button class="btn btn-primary staff-only" id="open-create-hw-btn" style="display:none;"><i class="fa-solid fa-plus"></i> Create Homework</button>
+        </div>
+        <div id="homework-list" class="grid">
+          <div class="card"><p>Loading homework...</p></div>
+        </div>
       </div>
-    </div>
 
-    <!-- TAB 4: MEMBERS & TA -->
-    <div class="tab-content" id="tab-members">
-      <h3>Classroom Roster & Staff</h3>
-      <div id="members-list-table" class="table-responsive" style="margin-top: 1rem;">
-        <p>Loading members...</p>
+      <!-- TAB 2: SUBMISSION MATRIX -->
+      <div class="tab-content" id="tab-matrix">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h3>Submission Matrix (Pivot Table: Students x Tasks)</h3>
+          <select id="matrix-hw-select" class="form-control" style="width: auto;">
+            <option value="">Select Homework Set</option>
+          </select>
+        </div>
+        <div id="matrix-container" class="table-responsive">
+          <p class="card-subtitle">Select a homework set to view submission matrix.</p>
+        </div>
       </div>
-    </div>
 
-    <!-- TAB 5: RESOURCES -->
-    <div class="tab-content" id="tab-resources">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <h3>Resource Sharing</h3>
-        <button class="btn btn-primary" id="open-add-resource-btn">+ Share Resource</button>
-      </div>
-      <div id="resources-list" class="grid">
-        <div class="card"><p>Loading resources...</p></div>
-      </div>
-    </div>
+      <!-- TAB 3: CLASS HEALTH -->
+      <div class="tab-content" id="tab-health">
+        <h3>Class Health Dashboard Overview</h3>
+        <div class="grid" style="margin-top: 1rem;">
+          <div class="card">
+            <div class="card-subtitle">Late Submission Rate</div>
+            <div style="font-size: 2rem; font-weight: bold; color: var(--status-orange);" id="health-late-rate">0%</div>
+            <p id="health-late-desc">0 of 0 submissions</p>
+          </div>
+          <div class="card">
+            <div class="card-subtitle">Live Attendance Rate</div>
+            <div style="font-size: 2rem; font-weight: bold; color: var(--status-green);" id="health-att-rate">0%</div>
+            <p id="health-att-desc">Based on session threshold</p>
+          </div>
+          <div class="card">
+            <div class="card-subtitle">At-Risk Learners Count</div>
+            <div style="font-size: 2rem; font-weight: bold; color: var(--status-red);" id="health-risk-count">0</div>
+            <p>Require intervention / alerts</p>
+          </div>
+        </div>
 
-    <!-- TAB 6: ALERTS -->
-    <div class="tab-content" id="tab-alerts">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <h3>Learner Warning Alerts</h3>
-        <button class="btn btn-primary staff-only" id="open-issue-alert-btn" style="display:none;">+ Issue Yellow/Red Alert</button>
+        <h4 style="margin-top: 2rem; margin-bottom: 1rem;"><i class="fa-solid fa-triangle-exclamation"></i> Identified At-Risk Learners</h4>
+        <div id="at-risk-learners-list" class="table-responsive">
+          <p>Loading health analytics...</p>
+        </div>
       </div>
-      <div id="alerts-list-table" class="table-responsive">
-        <p>Loading alerts...</p>
-      </div>
-    </div>
 
-    <!-- TAB 7: LIVE SESSIONS -->
-    <div class="tab-content" id="tab-live">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <h3>Live Class Sessions</h3>
-        <button class="btn btn-primary staff-only" id="open-create-session-btn" style="display:none;">+ Schedule Live Class</button>
+      <!-- TAB 4: MEMBERS & TA -->
+      <div class="tab-content" id="tab-members">
+        <h3>Classroom Roster & Staff</h3>
+        <div id="members-list-table" class="table-responsive" style="margin-top: 1rem;">
+          <p>Loading members...</p>
+        </div>
       </div>
-      <div id="live-sessions-list" class="grid">
-        <div class="card"><p>Loading live sessions...</p></div>
-      </div>
-    </div>
 
-    <!-- TAB 8: PLAGIARISM SCAN -->
-    <div class="tab-content" id="tab-plagiarism">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <h3>Plagiarism Code Hash Comparator</h3>
-        <button class="btn btn-primary staff-only" id="run-plagiarism-btn" style="display:none;">🔍 Run Plagiarism Scan</button>
+      <!-- TAB 5: RESOURCES -->
+      <div class="tab-content" id="tab-resources">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h3>Resource Sharing</h3>
+          <button class="btn btn-primary" id="open-add-resource-btn"><i class="fa-solid fa-plus"></i> Share Resource</button>
+        </div>
+        <div id="resources-list" class="grid">
+          <div class="card"><p>Loading resources...</p></div>
+        </div>
       </div>
-      <div id="plagiarism-flags-list" class="table-responsive">
-        <p>Run a scan or view existing flags...</p>
+
+      <!-- TAB 6: ALERTS -->
+      <div class="tab-content" id="tab-alerts">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h3>Learner Warning Alerts</h3>
+          <button class="btn btn-primary staff-only" id="open-issue-alert-btn" style="display:none;"><i class="fa-solid fa-plus"></i> Issue Yellow/Red Alert</button>
+        </div>
+        <div id="alerts-list-table" class="table-responsive">
+          <p>Loading alerts...</p>
+        </div>
       </div>
-    </div>
+
+      <!-- TAB 7: LIVE SESSIONS -->
+      <div class="tab-content" id="tab-live">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h3>Live Class Sessions</h3>
+          <button class="btn btn-primary staff-only" id="open-create-session-btn" style="display:none;"><i class="fa-solid fa-plus"></i> Schedule Live Class</button>
+        </div>
+        <div id="live-sessions-list" class="grid">
+          <div class="card"><p>Loading live sessions...</p></div>
+        </div>
+      </div>
+
+      <!-- TAB 8: PLAGIARISM SCAN -->
+      <div class="tab-content" id="tab-plagiarism">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h3>Plagiarism Code Hash Comparator</h3>
+          <button class="btn btn-primary staff-only" id="run-plagiarism-btn" style="display:none;"><i class="fa-solid fa-magnifying-glass"></i> Run Plagiarism Scan</button>
+        </div>
+        <div id="plagiarism-flags-list" class="table-responsive">
+          <p>Run a scan or view existing flags...</p>
+        </div>
+      </div>
+    </main>
   </div>
 
   <!-- Create Homework Modal -->

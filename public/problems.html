@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Problem Bank - ClassSync</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
@@ -16,8 +20,8 @@
         <p class="card-subtitle" id="prob-bank-meta">Categorized practice problems & solution repository</p>
       </div>
       <div style="display:flex; gap:0.5rem;">
-        <a href="#" id="back-to-classroom-btn" class="btn btn-outline">← Back to Classroom</a>
-        <button class="btn btn-primary staff-only" id="open-add-prob-btn" style="display:none;">+ Add Problem</button>
+        <a href="#" id="back-to-classroom-btn" class="btn btn-outline"><i class="fa-solid fa-arrow-left"></i> Back to Classroom</a>
+        <button class="btn btn-primary staff-only" id="open-add-prob-btn" style="display:none;"><i class="fa-solid fa-plus"></i> Add Problem</button>
       </div>
     </div>
 
@@ -87,7 +91,7 @@
       <div>
         <div style="margin-bottom:1rem;" id="sol-prob-desc"></div>
 
-        <div style="background:#f1f5f9; padding:1rem; border-radius:6px; margin-bottom:1rem;">
+        <div style="background:var(--table-head-bg); padding:1rem; border-radius:6px; margin-bottom:1rem; border:1px solid var(--border-color);">
           <h4>Instructor Solution</h4>
           <div class="code-box" id="sol-view-box">No official solution uploaded yet.</div>
         </div>

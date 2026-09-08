@@ -14,17 +14,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   let classroomData = null;
 
-  // Setup tab switching
-  const tabs = document.querySelectorAll('.tab-btn');
-  tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      tabs.forEach(t => t.classList.remove('active'));
+  // Setup sidebar tab switching
+  const sidebarItems = document.querySelectorAll('.sidebar-item');
+  sidebarItems.forEach(item => {
+    item.addEventListener('click', () => {
+      sidebarItems.forEach(i => i.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      tab.classList.add('active');
-      document.getElementById(tab.dataset.tab).classList.add('active');
+      item.classList.add('active');
+      document.getElementById(item.dataset.tab).classList.add('active');
 
       // Trigger lazy load for tab
-      const tabName = tab.dataset.tab;
+      const tabName = item.dataset.tab;
       if (tabName === 'tab-matrix') loadMatrixTab();
       if (tabName === 'tab-health') loadHealthTab();
       if (tabName === 'tab-members') loadMembersTab();
@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       `;
 
       if (['instructor', 'TA'].includes(classroomData.user_role)) {
-        document.querySelectorAll('.staff-only').forEach(el => el.style.display = 'inline-block');
+        document.querySelectorAll('.staff-only').forEach(el => el.style.display = 'inline-flex');
       }
 
       await loadHomeworkTab();
@@ -81,7 +81,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div><strong>Status:</strong> ${hw.is_published ? '<span class="badge badge-green">Published</span>' : '<span class="badge badge-yellow">Draft</span>'}</div>
           </div>
           <div style="display:flex; gap:0.5rem;">
-            <a href="/homework.html?id=${hw.homework_id}" class="btn btn-primary btn-sm">View Homework & Submit</a>
+            <a href="/homework.html?id=${hw.homework_id}" class="btn btn-primary btn-sm"><i class="fa-solid fa-file-pen"></i> View & Submit</a>
             ${['instructor', 'TA'].includes(classroomData.user_role) ? `
               <button class="btn btn-outline btn-sm" onclick="togglePublish(${hw.homework_id}, ${!hw.is_published})">
                 ${hw.is_published ? 'Unpublish' : 'Publish'}
@@ -166,7 +166,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const riskContainer = document.getElementById('at-risk-learners-list');
       if (at_risk_learners.length === 0) {
-        riskContainer.innerHTML = '<p>🎉 Great news! No learners currently flagged as at-risk.</p>';
+        riskContainer.innerHTML = '<p>No learners currently flagged as at-risk.</p>';
       } else {
         riskContainer.innerHTML = `
           <table>
@@ -260,7 +260,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       listEl.innerHTML = resources.map(r => `
         <div class="card">
-          <div class="card-title"><a href="${r.resource_url}" target="_blank" rel="noopener">${r.resource_title} 🔗</a></div>
+          <div class="card-title"><a href="${r.resource_url}" target="_blank" rel="noopener">${r.resource_title} <i class="fa-solid fa-arrow-up-right-from-square"></i></a></div>
           <div class="card-subtitle">${r.resource_description || 'No description.'}</div>
           <div style="font-size:0.8rem;">
             <div>Shared by <strong>${r.submitter_name}</strong></div>
@@ -343,7 +343,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div>Scheduled: ${new Date(s.scheduled_time).toLocaleString()}</div>
             <div>Expected Duration: ${s.expected_duration} mins</div>
           </div>
-          <a href="/live.html?id=${s.session_id}" class="btn btn-primary btn-sm">Join Live Room 🎥</a>
+          <a href="/live.html?id=${s.session_id}" class="btn btn-primary btn-sm"><i class="fa-solid fa-video"></i> Join Live Room</a>
         </div>
       `).join('');
     } catch (err) {

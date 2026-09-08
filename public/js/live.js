@@ -49,7 +49,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('tracker-timer').textContent = `${mins} mins ${secs} secs`;
 
       // Every 10 seconds, report attendance duration heartbeat
-      // Note: for quick lab demo, 1 min elapsed per 10 secs heartbeat so threshold is easy to reach
       const simulatedDuration = Math.max(1, Math.ceil(elapsedSeconds / 5));
 
       try {
@@ -62,9 +61,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const statusBadge = document.getElementById('attendance-status-badge');
 
         if (is_present) {
-          statusBadge.innerHTML = `<span class="badge badge-green">PRESENT (Reached ${threshold_minutes} min threshold!)</span>`;
+          statusBadge.innerHTML = `<span class="badge badge-green"><i class="fa-solid fa-check"></i> PRESENT (Reached ${threshold_minutes} min threshold!)</span>`;
         } else {
-          statusBadge.innerHTML = `<span class="badge badge-yellow">TRACKING (${simulatedDuration}/${threshold_minutes} mins to reach 75%)</span>`;
+          statusBadge.innerHTML = `<span class="badge badge-yellow"><i class="fa-solid fa-clock"></i> TRACKING (${simulatedDuration}/${threshold_minutes} mins to reach 75%)</span>`;
         }
 
         // Refresh log table

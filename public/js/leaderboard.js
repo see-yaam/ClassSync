@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       tableBody.innerHTML = rankings.map(r => `
         <tr>
           <td style="font-weight:bold; font-size:1.1rem; text-align:center;">
-            ${r.rank === 1 ? '🥇 1' : r.rank === 2 ? '🥈 2' : r.rank === 3 ? '🥉 3' : `#${r.rank}`}
+            ${r.rank === 1 ? '<span style="color:#eab308;"><i class="fa-solid fa-award"></i> #1</span>' : r.rank === 2 ? '<span style="color:#94a3b8;"><i class="fa-solid fa-award"></i> #2</span>' : r.rank === 3 ? '<span style="color:#b45309;"><i class="fa-solid fa-award"></i> #3</span>' : `#${r.rank}`}
           </td>
           <td>
             <div style="display:flex; align-items:center; gap:0.75rem;">
@@ -41,8 +41,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           </td>
           <td>
             ${r.streak > 0 ? `
-              <span class="badge badge-yellow" style="font-size:0.9rem;">
-                🔥 ${r.streak} HW Streak!
+              <span class="badge badge-yellow" style="font-size:0.85rem;">
+                <i class="fa-solid fa-fire"></i> ${r.streak} HW Streak!
               </span>
             ` : '<span style="color:var(--text-muted); font-size:0.85rem;">No active streak</span>'}
           </td>

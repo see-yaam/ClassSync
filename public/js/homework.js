@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('back-to-classroom-btn').href = `/classroom.html?id=${homeworkData.classroom_id}`;
 
       if (homeworkData.is_staff) {
-        document.querySelectorAll('.staff-only').forEach(el => el.style.display = 'inline-block');
+        document.querySelectorAll('.staff-only').forEach(el => el.style.display = 'inline-flex');
       }
 
       renderQuestions(homeworkData.questions);
@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div style="margin-bottom: 1rem; font-size: 1rem;">${q.question_text}</div>
 
         <!-- Learner Submission Box -->
-        <div style="background:#f8fafc; padding:1rem; border-radius:6px; margin-bottom:1rem; border:1px solid var(--border-color);">
+        <div style="background:var(--table-head-bg); padding:1rem; border-radius:6px; margin-bottom:1rem; border:1px solid var(--border-color);">
           <h4>Your Solution Submission</h4>
           ${q.submission_id ? `
             <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:0.5rem;">
@@ -61,11 +61,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="code-box">${escapeHtml(q.code_content || q.file_url || 'No content')}</div>
             
             ${q.score !== null ? `
-              <div style="margin-top:0.5rem; padding:0.5rem; background:#d1fae5; border-radius:4px;">
+              <div style="margin-top:0.5rem; padding:0.5rem; background:rgba(16,185,129,0.15); border-radius:4px;">
                 <strong>Grade:</strong> ${q.score} / ${q.points} pts | 
                 <strong>Feedback:</strong> ${q.feedback || 'None'}
               </div>
-            ` : '<p style="font-size:0.85rem; color:orange;">Pending instructor grading...</p>'}
+            ` : '<p style="font-size:0.85rem; color:var(--status-orange);">Pending instructor grading...</p>'}
           ` : '<p style="font-size:0.85rem; color:var(--text-muted);">You have not submitted a solution yet.</p>'}
 
           <!-- Submission Form -->
@@ -83,8 +83,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         <!-- Post-Submission Answer Key Section -->
         <div style="margin-bottom:1rem;">
-          <button class="btn btn-outline btn-sm" onclick="toggleAnswerKey(${q.question_id})">🔑 View Instructor Answer Key</button>
-          <div id="answer-key-box-${q.question_id}" style="display:none; margin-top:0.5rem; padding:0.75rem; background:#f1f5f9; border-radius:6px;">
+          <button class="btn btn-outline btn-sm" onclick="toggleAnswerKey(${q.question_id})"><i class="fa-solid fa-key"></i> View Instructor Answer Key</button>
+          <div id="answer-key-box-${q.question_id}" style="display:none; margin-top:0.5rem; padding:0.75rem; background:var(--table-head-bg); border-radius:6px; border:1px solid var(--border-color);">
             <p>Loading answer key...</p>
           </div>
         </div>
@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="code-box" style="margin-top:0.25rem;">${escapeHtml(res.data.answer_text || res.data.answer_file_url)}</div>
       `;
     } catch (err) {
-      box.innerHTML = `<p style="color:red; font-size:0.85rem;">🔒 ${err.message}</p>`;
+      box.innerHTML = `<p style="color:var(--status-red); font-size:0.85rem;"><i class="fa-solid fa-lock"></i> ${err.message}</p>`;
     }
   };
 
@@ -172,7 +172,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td>${s.score !== null ? `<strong>${s.score} pts</strong>` : '<span class="badge badge-gray">Not Graded</span>'}</td>
                 <td>
                   <button class="btn btn-primary btn-sm" onclick="openGradeModal(${s.submission_id}, '${escapeHtml(s.learner_name)}', '${escapeHtml(s.code_content || '')}', ${s.score || ''}, '${escapeHtml(s.feedback || '')}')">
-                    Grade & Code Review (${s.review_count})
+                    Grade & Review (${s.review_count})
                   </button>
                 </td>
               </tr>

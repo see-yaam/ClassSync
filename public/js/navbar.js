@@ -17,17 +17,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   navbarContainer.innerHTML = `
     <nav class="navbar">
       <a href="/index.html" class="nav-brand">
-        📚 <span>ClassSync</span>
+        <i class="fa-solid fa-graduation-cap"></i> <span>ClassSync</span>
       </a>
       <div class="nav-controls">
         <button class="theme-toggle-btn" id="theme-toggle-btn" title="Toggle Dark/Light Mode">
-          ${currentTheme === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode'}
+          ${currentTheme === 'dark' ? '<i class="fa-solid fa-sun"></i> Light Mode' : '<i class="fa-solid fa-moon"></i> Dark Mode'}
         </button>
 
         ${token ? `
           <div class="notification-bell-container">
             <button class="bell-btn" id="bell-btn" title="Notifications">
-              🔔 <span class="bell-badge" id="bell-badge" style="display:none;">0</span>
+              <i class="fa-solid fa-bell"></i> <span class="bell-badge" id="bell-badge" style="display:none;">0</span>
             </button>
             <div class="notifications-dropdown" id="notifications-dropdown">
               <div class="noti-header">
@@ -41,14 +41,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
 
           <div class="user-switcher">
-            <span>👤 <strong>${loggedInUser ? loggedInUser.full_name : 'User'}</strong></span>
+            <span><i class="fa-solid fa-user-circle"></i> <strong>${loggedInUser ? loggedInUser.full_name : 'User'}</strong></span>
           </div>
 
-          <button class="btn btn-outline btn-sm" onclick="logout()">Logout 🚪</button>
+          <button class="btn btn-outline btn-sm" onclick="logout()"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
         ` : `
           <!-- Mock User Switcher for quick lab testing if not logged in via JWT -->
           <div class="user-switcher">
-            <label for="active-user-select">👤 Test User:</label>
+            <label for="active-user-select"><i class="fa-solid fa-user-gear"></i> Test User:</label>
             <select id="active-user-select">
               <option value="1">Loading users...</option>
             </select>
@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const newTheme = activeTheme === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', newTheme);
     localStorage.setItem('classsync_theme', newTheme);
-    document.getElementById('theme-toggle-btn').innerHTML = newTheme === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode';
+    document.getElementById('theme-toggle-btn').innerHTML = newTheme === 'dark' ? '<i class="fa-solid fa-sun"></i> Light Mode' : '<i class="fa-solid fa-moon"></i> Dark Mode';
   });
 
   // If not logged in via JWT, fetch test users for user selector

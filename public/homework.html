@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Homework & Submission - ClassSync</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
@@ -16,8 +20,8 @@
         <p class="card-subtitle" id="hw-meta">Loading homework details...</p>
       </div>
       <div style="display:flex; gap:0.5rem;">
-        <a href="#" id="back-to-classroom-btn" class="btn btn-outline">← Back to Classroom</a>
-        <button class="btn btn-primary staff-only" id="open-add-q-btn" style="display:none;">+ Add Question</button>
+        <a href="#" id="back-to-classroom-btn" class="btn btn-outline"><i class="fa-solid fa-arrow-left"></i> Back to Classroom</a>
+        <button class="btn btn-primary staff-only" id="open-add-q-btn" style="display:none;"><i class="fa-solid fa-plus"></i> Add Question</button>
       </div>
     </div>
 
@@ -55,7 +59,7 @@
           <label>Order Number</label>
           <input type="number" id="q-order" class="form-control" value="1">
         </div>
-        <hr style="margin: 1rem 0;">
+        <hr style="margin: 1rem 0; border-color: var(--border-color);">
         <h4>Instructor Answer Key (Optional)</h4>
         <div class="form-group">
           <label>Solution / Answer Text</label>
@@ -86,16 +90,16 @@
         </div>
 
         <!-- Add Inline Comment Form -->
-        <form id="add-review-form" style="background:#f8fafc; padding:0.75rem; border-radius:6px; margin-bottom:1rem;">
+        <form id="add-review-form" style="background:var(--table-head-bg); padding:0.75rem; border-radius:6px; margin-bottom:1rem; border:1px solid var(--border-color);">
           <div style="display:flex; gap:0.5rem; margin-bottom:0.5rem;">
             <input type="number" id="rev-line-start" class="form-control" placeholder="Start Line #" required style="width:120px;">
             <input type="number" id="rev-line-end" class="form-control" placeholder="End Line #" required style="width:120px;">
           </div>
           <input type="text" id="rev-comment" class="form-control" placeholder="Line review comment..." required>
-          <button type="submit" class="btn btn-outline btn-sm" style="margin-top:0.5rem;">Add Line Review</button>
+          <button type="submit" class="btn btn-outline btn-sm" style="margin-top:0.5rem;"><i class="fa-solid fa-comment-medical"></i> Add Line Review</button>
         </form>
 
-        <hr style="margin:1rem 0;">
+        <hr style="margin:1rem 0; border-color:var(--border-color);">
 
         <!-- Main Grade Form -->
         <form id="submit-grade-form">

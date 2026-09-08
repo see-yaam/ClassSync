@@ -47,9 +47,9 @@ document.addEventListener('DOMContentLoaded', () => {
         <div><strong>Room Password:</strong> <code>${c.room_password}</code></div>
       </div>
       <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
-        <a href="/classroom.html?id=${c.classroom_id}" class="btn btn-primary btn-sm">Enter Classroom</a>
-        <a href="/problems.html?id=${c.classroom_id}" class="btn btn-outline btn-sm">Problem Bank</a>
-        <a href="/leaderboard.html?id=${c.classroom_id}" class="btn btn-outline btn-sm">🏆 Leaderboard</a>
+        <a href="/classroom.html?id=${c.classroom_id}" class="btn btn-primary btn-sm"><i class="fa-solid fa-arrow-right-to-bracket"></i> Enter Classroom</a>
+        <a href="/problems.html?id=${c.classroom_id}" class="btn btn-outline btn-sm"><i class="fa-solid fa-folder-closed"></i> Problem Bank</a>
+        <a href="/leaderboard.html?id=${c.classroom_id}" class="btn btn-outline btn-sm"><i class="fa-solid fa-trophy"></i> Leaderboard</a>
       </div>
     </div>
   `;

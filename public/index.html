@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard - ClassSync</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
@@ -16,14 +20,14 @@
         <p class="card-subtitle">Manage your classrooms, assignments, and submissions</p>
       </div>
       <div style="display: flex; gap: 0.5rem;">
-        <button class="btn btn-outline" id="open-join-modal-btn">➕ Join Classroom</button>
-        <button class="btn btn-primary" id="open-create-modal-btn">✨ Create Classroom</button>
+        <button class="btn btn-outline" id="open-join-modal-btn"><i class="fa-solid fa-plus"></i> Join Classroom</button>
+        <button class="btn btn-primary" id="open-create-modal-btn"><i class="fa-solid fa-square-plus"></i> Create Classroom</button>
       </div>
     </div>
 
     <!-- Instructor Section -->
     <div style="margin-bottom: 2rem;">
-      <h2 style="font-size: 1.2rem; margin-bottom: 1rem;">👨‍🏫 Classrooms You Teach (Instructor)</h2>
+      <h2 style="font-size: 1.2rem; margin-bottom: 1rem;"><i class="fa-solid fa-chalkboard-user"></i> Classrooms You Teach (Instructor)</h2>
       <div class="grid" id="instructor-classrooms-grid">
         <div class="card"><p>Loading classrooms...</p></div>
       </div>
@@ -31,7 +35,7 @@
 
     <!-- Learner / TA Section -->
     <div>
-      <h2 style="font-size: 1.2rem; margin-bottom: 1rem;">🎓 Classrooms You Joined (Learner / TA)</h2>
+      <h2 style="font-size: 1.2rem; margin-bottom: 1rem;"><i class="fa-solid fa-user-graduate"></i> Classrooms You Joined (Learner / TA)</h2>
       <div class="grid" id="joined-classrooms-grid">
         <div class="card"><p>Loading classrooms...</p></div>
       </div>

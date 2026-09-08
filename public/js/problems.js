@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const res = await apiFetch(`/classrooms/${classroomId}`);
       if (['instructor', 'TA'].includes(res.data.user_role)) {
         isStaff = true;
-        document.querySelectorAll('.staff-only').forEach(el => el.style.display = 'inline-block');
+        document.querySelectorAll('.staff-only').forEach(el => el.style.display = 'inline-flex');
       }
     } catch (err) {
       console.error(err);
@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       container.innerHTML = categories.map(cat => `
         <div style="margin-bottom: 2rem;">
           <h2 style="font-size: 1.15rem; border-bottom: 2px solid var(--border-color); padding-bottom: 0.4rem; margin-bottom: 1rem;">
-            🏷️ Category: ${cat} (${grouped[cat].length})
+            <i class="fa-solid fa-tag"></i> Category: ${cat} (${grouped[cat].length})
           </h2>
           <div class="grid">
             ${grouped[cat].map(p => `
@@ -59,9 +59,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
                 <div class="card-subtitle">${p.problem_description.substring(0, 120)}...</div>
                 <div style="font-size:0.8rem; margin-bottom:0.75rem; color:var(--text-muted);">
-                  Created by <strong>${p.creator_name}</strong> | Solution: ${p.has_solution ? '✅ Solution Available' : '❌ No Solution'}
+                  Created by <strong>${p.creator_name}</strong> | Solution: ${p.has_solution ? '<span style="color:var(--status-green);"><i class="fa-solid fa-check"></i> Solution Available</span>' : '<span style="color:var(--text-muted);"><i class="fa-solid fa-xmark"></i> No Solution</span>'}
                 </div>
-                <button class="btn btn-outline btn-sm" onclick="viewProblemDetail(${p.problem_id})">View Detail & Solution</button>
+                <button class="btn btn-outline btn-sm" onclick="viewProblemDetail(${p.problem_id})"><i class="fa-solid fa-eye"></i> View Detail & Solution</button>
               </div>
             `).join('')}
           </div>
@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('sol-prob-title').textContent = p.problem_title;
       document.getElementById('sol-prob-desc').innerHTML = `
         <div><strong>Category:</strong> ${p.category} | <strong>Difficulty:</strong> ${p.difficulty.toUpperCase()}</div>
-        <div style="margin-top:0.5rem; background:#f8fafc; padding:0.75rem; border-radius:6px;">${p.problem_description}</div>
+        <div style="margin-top:0.5rem; background:var(--table-head-bg); padding:0.75rem; border-radius:6px; border:1px solid var(--border-color);">${p.problem_description}</div>
       `;
 
       const viewBox = document.getElementById('sol-view-box');

@@ -1,4 +1,5 @@
-/* ClassSync - Clean, functional DBMS Lab UI with Dark Mode */
+/* ClassSync - Clean DBMS Lab UI with Inter & Space Grotesk Typography */
+
 :root {
   --primary-color: #2563eb;
   --primary-hover: #1d4ed8;
@@ -12,13 +13,16 @@
   --header-bg: #0f172a;
   --table-head-bg: #f1f5f9;
   --dropdown-bg: #ffffff;
+  --sidebar-bg: #ffffff;
+  --sidebar-active-bg: rgba(37, 99, 235, 0.08);
 
   --status-green: #10b981;
   --status-orange: #f59e0b;
   --status-gray: #94a3b8;
   --status-red: #ef4444;
 
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-heading: 'Space Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
@@ -35,6 +39,8 @@
   --header-bg: #020617;
   --table-head-bg: #0f172a;
   --dropdown-bg: #1e293b;
+  --sidebar-bg: #1e293b;
+  --sidebar-active-bg: rgba(59, 130, 246, 0.15);
 }
 
 * {
@@ -49,6 +55,11 @@ body {
   color: var(--text-main);
   line-height: 1.5;
   transition: background-color 0.2s, color 0.2s;
+}
+
+h1, h2, h3, h4, h5, h6, .page-title, .nav-brand, .card-title {
+  font-family: var(--font-heading);
+  letter-spacing: -0.02em;
 }
 
 a {
@@ -79,7 +90,7 @@ a:hover {
   color: #fff;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.6rem;
 }
 
 .nav-controls {
@@ -92,13 +103,14 @@ a:hover {
   background: var(--card-bg);
   color: var(--text-main);
   border: 1px solid var(--border-color);
-  padding: 0.35rem 0.6rem;
+  padding: 0.4rem 0.75rem;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 500;
   display: flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.4rem;
 }
 
 .user-switcher {
@@ -136,7 +148,7 @@ a:hover {
   background: none;
   border: none;
   color: #fff;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   cursor: pointer;
   position: relative;
   padding: 0.4rem;
@@ -229,16 +241,113 @@ a:hover {
   font-weight: 700;
 }
 
+/* Left Sidebar Layout for Classroom Detail Page */
+.classroom-layout {
+  display: flex;
+  min-height: calc(100vh - 61px);
+}
+
+.sidebar {
+  width: 250px;
+  background-color: var(--sidebar-bg);
+  border-right: 1px solid var(--border-color);
+  padding: 1.25rem 0;
+  flex-shrink: 0;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-left: 3px solid transparent;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.sidebar-item i {
+  font-size: 1rem;
+  width: 20px;
+  text-align: center;
+}
+
+.sidebar-item:hover {
+  color: var(--text-main);
+  background-color: var(--table-head-bg);
+}
+
+.sidebar-item.active {
+  color: var(--primary-color);
+  background-color: var(--sidebar-active-bg);
+  border-left-color: var(--primary-color);
+  font-weight: 600;
+}
+
+.classroom-content {
+  flex: 1;
+  padding: 1.5rem 2rem;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* Responsive Mobile Sidebar */
+@media (max-width: 768px) {
+  .classroom-layout {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.5rem 0;
+  }
+  .sidebar-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 0 0.5rem;
+  }
+  .sidebar-item {
+    white-space: nowrap;
+    border-left: none;
+    border-bottom: 3px solid transparent;
+    padding: 0.6rem 0.85rem;
+  }
+  .sidebar-item.active {
+    border-left-color: transparent;
+    border-bottom-color: var(--primary-color);
+  }
+  .classroom-content {
+    padding: 1rem;
+  }
+}
+
 /* Buttons & Inputs */
 .btn {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
   font-weight: 500;
+  font-family: var(--font-sans);
   border-radius: 6px;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.2s, border-color 0.2s;
   text-decoration: none;
   text-align: center;
 }
@@ -270,8 +379,8 @@ a:hover {
 }
 
 .btn-sm {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.775rem;
 }
 
 .form-group {
@@ -289,6 +398,7 @@ a:hover {
   width: 100%;
   padding: 0.55rem 0.75rem;
   font-size: 0.875rem;
+  font-family: var(--font-sans);
   border: 1px solid var(--border-color);
   border-radius: 6px;
   outline: none;
@@ -317,7 +427,7 @@ textarea.form-control {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 1.25rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
 .card-title {
@@ -332,32 +442,7 @@ textarea.form-control {
   margin-bottom: 0.75rem;
 }
 
-/* Tabs */
-.tabs {
-  display: flex;
-  gap: 0.5rem;
-  border-bottom: 2px solid var(--border-color);
-  margin-bottom: 1.5rem;
-  overflow-x: auto;
-}
-
-.tab-btn {
-  padding: 0.6rem 1rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  border: none;
-  background: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
-}
-
-.tab-btn.active {
-  color: var(--primary-color);
-  border-bottom-color: var(--primary-color);
-}
-
+/* Tab Content View */
 .tab-content {
   display: none;
 }
@@ -413,8 +498,10 @@ th {
 
 /* Badges */
 .badge {
-  display: inline-block;
-  padding: 0.2rem 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.55rem;
   font-size: 0.75rem;
   font-weight: 600;
   border-radius: 4px;
