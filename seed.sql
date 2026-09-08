@@ -1,11 +1,11 @@
 USE `classsync_db`;
 
 -- Seed Users
-INSERT INTO `users` (`user_id`, `email`, `password_hash`, `full_name`, `profile_picture_url`) VALUES
-(1, 'alice@uiu.ac.bd', 'hashed_pass_1', 'Dr. Alice Smith (Instructor)', 'https://ui-avatars.com/api/?name=Alice+Smith&background=0D8ABC&color=fff'),
-(2, 'bob@uiu.ac.bd', 'hashed_pass_2', 'Bob Johnson (Learner)', 'https://ui-avatars.com/api/?name=Bob+Johnson&background=2ecc71&color=fff'),
-(3, 'charlie@uiu.ac.bd', 'hashed_pass_3', 'Charlie Brown (Learner)', 'https://ui-avatars.com/api/?name=Charlie+Brown&background=e74c3c&color=fff'),
-(4, 'diana@uiu.ac.bd', 'hashed_pass_4', 'Diana Prince (TA)', 'https://ui-avatars.com/api/?name=Diana+Prince&background=f39c12&color=fff');
+INSERT INTO `users` (`user_id`, `email`, `password_hash`, `full_name`, `profile_picture_url`, `is_verified`) VALUES
+(1, 'alice@uiu.ac.bd', 'hashed_pass_1', 'Dr. Alice Smith (Instructor)', 'https://ui-avatars.com/api/?name=Alice+Smith&background=0D8ABC&color=fff', true),
+(2, 'bob@uiu.ac.bd', 'hashed_pass_2', 'Bob Johnson (Learner)', 'https://ui-avatars.com/api/?name=Bob+Johnson&background=2ecc71&color=fff', true),
+(3, 'charlie@uiu.ac.bd', 'hashed_pass_3', 'Charlie Brown (Learner)', 'https://ui-avatars.com/api/?name=Charlie+Brown&background=e74c3c&color=fff', true),
+(4, 'diana@uiu.ac.bd', 'hashed_pass_4', 'Diana Prince (TA)', 'https://ui-avatars.com/api/?name=Diana+Prince&background=f39c12&color=fff', true);
 
 -- Seed Classroom 1 (Created by Dr. Alice)
 INSERT INTO `classrooms` (`classroom_id`, `creator_id`, `room_number`, `room_password`, `classroom_name`, `description`) VALUES

@@ -26,6 +26,7 @@ CREATE TABLE `users` (
   `password_hash` varchar(255) NOT NULL,
   `full_name` varchar(100) NOT NULL,
   `profile_picture_url` varchar(500),
+  `is_verified` boolean DEFAULT false,
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_active` boolean DEFAULT true,
@@ -34,8 +35,9 @@ CREATE TABLE `users` (
 
 CREATE TABLE `password_reset_otp` (
   `otp_id` int PRIMARY KEY AUTO_INCREMENT,
-  `user_id` int NOT NULL,
+  `user_id` int NULL,
   `otp_code` varchar(6) NOT NULL,
+  `otp_purpose` enum('registration','password_reset') NOT NULL DEFAULT 'password_reset',
   `expires_at` timestamp NOT NULL,
   `is_used` boolean DEFAULT false,
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP
