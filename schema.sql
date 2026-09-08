@@ -20,13 +20,13 @@ DROP TABLE IF EXISTS `classrooms`;
 DROP TABLE IF EXISTS `password_reset_otp`;
 DROP TABLE IF EXISTS `users`;
 
+-- Base Tables Definition (Original Schema)
 CREATE TABLE `users` (
   `user_id` int PRIMARY KEY AUTO_INCREMENT,
   `email` varchar(255) UNIQUE NOT NULL,
   `password_hash` varchar(255) NOT NULL,
   `full_name` varchar(100) NOT NULL,
   `profile_picture_url` varchar(500),
-  `is_verified` boolean DEFAULT false,
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_active` boolean DEFAULT true,
@@ -35,9 +35,8 @@ CREATE TABLE `users` (
 
 CREATE TABLE `password_reset_otp` (
   `otp_id` int PRIMARY KEY AUTO_INCREMENT,
-  `user_id` int NULL,
+  `user_id` int NOT NULL,
   `otp_code` varchar(6) NOT NULL,
-  `otp_purpose` enum('registration','password_reset') NOT NULL DEFAULT 'password_reset',
   `expires_at` timestamp NOT NULL,
   `is_used` boolean DEFAULT false,
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP
@@ -247,6 +246,7 @@ CREATE TABLE `plagiarism_flags` (
   `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+-- Constraints & Indexes
 CREATE UNIQUE INDEX `classroom_members_index_0` ON `classroom_members` (`user_id`, `classroom_id`);
 CREATE UNIQUE INDEX `submissions_index_1` ON `submissions` (`question_id`, `learner_id`);
 CREATE UNIQUE INDEX `attendance_index_2` ON `attendance` (`session_id`, `learner_id`);
@@ -288,3 +288,16 @@ ALTER TABLE `resources` ADD FOREIGN KEY (`approved_by`) REFERENCES `users` (`use
 ALTER TABLE `learner_alerts` ADD FOREIGN KEY (`resolved_by`) REFERENCES `users` (`user_id`);
 ALTER TABLE `plagiarism_flags` ADD FOREIGN KEY (`reviewed_by`) REFERENCES `users` (`user_id`);
 ALTER TABLE `plagiarism_flags` ADD CONSTRAINT `chk_submission_order` CHECK (`submission_id_1` < `submission_id_2`);
+
+-- ==============================================================================
+-- MIGRATIONS & NEW FEATURE EXTENSIONS (Added incrementally for Auth module)
+-- ==============================================================================
+
+-- 1. Add verification status column to users table
+ALTER TABLE `users` ADD COLUMN `is_verified` BOOLEAN DEFAULT false;
+
+-- 2. Add OTP purpose column to password_reset_otp table
+ALTER TABLE `password_reset_otp` ADD COLUMN `otp_purpose` ENUM('registration','password_reset') NOT NULL DEFAULT 'password_reset';
+
+-- 3. Allow NULL user_id for registration OTPs before account creation
+ALTER TABLE `password_reset_otp` MODIFY COLUMN `user_id` INT NULL;
