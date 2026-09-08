@@ -15,6 +15,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '../public')));
 
 // API Routes
+app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api', require('./routes/notificationRoutes'));
 app.use('/api/classrooms', require('./routes/classroomRoutes'));
@@ -28,7 +29,7 @@ app.use('/api', require('./routes/resourceRoutes'));
 app.use('/api', require('./routes/alertRoutes'));
 app.use('/api', require('./routes/plagiarismRoutes'));
 
-// Fallback to index.html for unknown static routes
+// Fallback to login.html if not authenticated, or index.html for static routes
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api')) {
     return next();

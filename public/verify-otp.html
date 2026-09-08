@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify OTP - ClassSync</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="navbar-container"></div>
+
+  <div class="auth-container">
+    <div class="card">
+      <div style="text-align: center; margin-bottom: 1.5rem;">
+        <h1 style="font-size: 1.5rem; font-weight: 700;">Verify Your Email</h1>
+        <p class="card-subtitle" id="otp-target-email">Enter the 6-digit OTP sent to your email</p>
+      </div>
+
+      <form id="otp-form">
+        <div class="form-group">
+          <label for="otp-code">6-Digit Verification Code *</label>
+          <input type="text" id="otp-code" class="form-control" placeholder="e.g. 123456" maxlength="6" style="font-size: 1.25rem; letter-spacing: 4px; text-align: center;" required>
+        </div>
+        
+        <button type="submit" class="btn btn-primary btn-block" id="otp-btn">Verify OTP & Create Account</button>
+      </form>
+
+      <div style="text-align: center; margin-top: 1.5rem; font-size: 0.875rem;">
+        Didn't receive code? <a href="/register.html">Try Registering Again</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/navbar.js"></script>
+  <script src="/js/verify-otp.js"></script>
+</body>
+</html>
