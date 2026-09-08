@@ -2,10 +2,10 @@ USE `classsync_db`;
 
 -- Seed Users (Default password for all seed test accounts: password123)
 INSERT INTO `users` (`user_id`, `email`, `password_hash`, `full_name`, `profile_picture_url`, `is_verified`) VALUES
-(1, 'alice@uiu.ac.bd', '$2b$10$kUN20B/h2OCGvJr26HatXuAKXDX3Tuyz4R5/meJMqna2jkVlJj43q', 'Dr. Alice Smith (Instructor)', 'https://ui-avatars.com/api/?name=Alice+Smith&background=0D8ABC&color=fff', true),
-(2, 'bob@uiu.ac.bd', '$2b$10$kUN20B/h2OCGvJr26HatXuAKXDX3Tuyz4R5/meJMqna2jkVlJj43q', 'Bob Johnson (Learner)', 'https://ui-avatars.com/api/?name=Bob+Johnson&background=2ecc71&color=fff', true),
-(3, 'charlie@uiu.ac.bd', '$2b$10$kUN20B/h2OCGvJr26HatXuAKXDX3Tuyz4R5/meJMqna2jkVlJj43q', 'Charlie Brown (Learner)', 'https://ui-avatars.com/api/?name=Charlie+Brown&background=e74c3c&color=fff', true),
-(4, 'diana@uiu.ac.bd', '$2b$10$kUN20B/h2OCGvJr26HatXuAKXDX3Tuyz4R5/meJMqna2jkVlJj43q', 'Diana Prince (TA)', 'https://ui-avatars.com/api/?name=Diana+Prince&background=f39c12&color=fff', true);
+(1, 'alice@uiu.ac.bd', '$2b$10$cjA1I6M4hUiFV.m1shsXP.mrJfmwVqChH8FAu9bj/QBodG2WnOr5O', 'Dr. Alice Smith (Instructor)', 'https://ui-avatars.com/api/?name=Alice+Smith&background=0D8ABC&color=fff', true),
+(2, 'bob@uiu.ac.bd', '$2b$10$cjA1I6M4hUiFV.m1shsXP.mrJfmwVqChH8FAu9bj/QBodG2WnOr5O', 'Bob Johnson (Learner)', 'https://ui-avatars.com/api/?name=Bob+Johnson&background=2ecc71&color=fff', true),
+(3, 'charlie@uiu.ac.bd', '$2b$10$cjA1I6M4hUiFV.m1shsXP.mrJfmwVqChH8FAu9bj/QBodG2WnOr5O', 'Charlie Brown (Learner)', 'https://ui-avatars.com/api/?name=Charlie+Brown&background=e74c3c&color=fff', true),
+(4, 'diana@uiu.ac.bd', '$2b$10$cjA1I6M4hUiFV.m1shsXP.mrJfmwVqChH8FAu9bj/QBodG2WnOr5O', 'Diana Prince (TA)', 'https://ui-avatars.com/api/?name=Diana+Prince&background=f39c12&color=fff', true);
 
 -- Seed Classroom 1 (Created by Dr. Alice)
 INSERT INTO `classrooms` (`classroom_id`, `creator_id`, `room_number`, `room_password`, `classroom_name`, `description`) VALUES
