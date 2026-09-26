@@ -1,15 +1,30 @@
 const db = require('../config/db');
 
+const normalizeForComparison = (text) => {
+  if (text == null) return '';
+
+  return String(text)
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+};
+
 const canonicalizeCode = (code) => {
-  const withoutComments = code
+  const normalized = normalizeForComparison(code);
+  const withoutComments = normalized
     .replace(/(['"`])(?:\\.|(?!\1)[^\\])*\1/g, 'STRING')
     .replace(/\/\/.*|\/\*[\s\S]*?\*\//g, '')
     .replace(/\b\d+(?:\.\d+)?\b/g, 'NUMBER');
-  const tokens = withoutComments.match(/[A-Za-z_$][\w$]*|===|!==|==|!=|<=|>=|&&|\|\||\+\+|--|=>|[{}()[\].,;:+\-*\/%<>=!?]/g) || [];
+
+  const tokens = withoutComments.match(/[\p{L}_$][\p{L}\p{N}_$]*|===|!==|==|!=|<=|>=|&&|\|\||\+\+|--|=>|[{}()[\].,;:+\-*\/%<>=!?]/gu) || [];
   const identifiers = new Map();
   let nextIdentifier = 0;
+
   return tokens.map((token) => {
-    if (!/^[A-Za-z_$][\w$]*$/.test(token)) return token;
+    if (!/^[\p{L}_$][\p{L}\p{N}_$]*$/u.test(token)) return token;
     if (/^(const|let|var|function|return|if|else|for|while|do|switch|case|break|continue|new|class|extends|try|catch|finally|throw|async|await|true|false|null|undefined|this|typeof|instanceof|in|of)$/.test(token)) {
       return token;
     }
@@ -19,6 +34,12 @@ const canonicalizeCode = (code) => {
 };
 
 const calculateSimilarity = (code1, code2) => {
+  const left = normalizeForComparison(code1);
+  const right = normalizeForComparison(code2);
+
+  if (!left && !right) return 0;
+  if (left === right) return 100;
+
   const tokens1 = canonicalizeCode(code1);
   const tokens2 = canonicalizeCode(code2);
   const shingles = (tokens) => new Set(
@@ -47,9 +68,13 @@ const runPlagiarismScan = async (req, res) => {
   try {
     const classroomId = req.params.id;
     const userId = req.user.user_id;
+    const homeworkId = Number(req.body.homework_id);
 
     if (!(await isInstructorOrTA(userId, classroomId))) {
       return res.status(403).json({ success: false, message: 'Only instructors or TAs can run plagiarism checks' });
+    }
+    if (!homeworkId) {
+      return res.status(400).json({ success: false, message: 'Please select a homework set before running the plagiarism scan' });
     }
 
     // Fetch text submissions with content; similarity detection does not require code_hash.
@@ -58,12 +83,12 @@ const runPlagiarismScan = async (req, res) => {
        FROM submissions s
        JOIN questions q ON s.question_id = q.question_id
        JOIN homework h ON q.homework_id = h.homework_id
-       WHERE h.classroom_id = ?
+      WHERE h.classroom_id = ? AND h.homework_id = ?
          AND h.is_active = true
          AND s.submission_type = 'text'
          AND s.code_content IS NOT NULL 
          AND TRIM(s.code_content) != ''`,
-      [classroomId]
+      [classroomId, homeworkId]
     );
 
     await db.query(
@@ -72,8 +97,8 @@ const runPlagiarismScan = async (req, res) => {
        JOIN submissions s1 ON pf.submission_id_1 = s1.submission_id
        JOIN questions q ON s1.question_id = q.question_id
        JOIN homework h ON q.homework_id = h.homework_id
-       WHERE h.classroom_id = ?`,
-      [classroomId]
+      WHERE h.classroom_id = ? AND h.homework_id = ?`,
+          [classroomId, homeworkId]
     );
 
     let newFlagsCount = 0;
@@ -98,7 +123,7 @@ const runPlagiarismScan = async (req, res) => {
             [id1, id2, similarityScore, userId]
           );
 
-          if (similarityScore >= 80) {
+          if (similarityScore > 75) {
             newFlagsCount++;
           }
         }
@@ -122,6 +147,7 @@ const getPlagiarismFlags = async (req, res) => {
   try {
     const classroomId = req.params.id;
     const userId = req.user.user_id;
+    const homeworkId = Number(req.query.homework_id);
 
     if (!(await isInstructorOrTA(userId, classroomId))) {
       return res.status(403).json({ success: false, message: 'Access denied' });
@@ -141,8 +167,9 @@ const getPlagiarismFlags = async (req, res) => {
        JOIN homework h ON q.homework_id = h.homework_id
        WHERE h.classroom_id = ?
          AND h.is_active = true
+         AND (? IS NULL OR h.homework_id = ?)
        ORDER BY pf.similarity_score DESC, pf.created_at DESC`,
-      [classroomId]
+      [classroomId, homeworkId || null, homeworkId || null]
     );
 
     res.json({ success: true, data: flags });
@@ -178,19 +205,23 @@ const clearPlagiarismFlags = async (req, res) => {
   try {
     const classroomId = req.params.id;
     const userId = req.user.user_id;
+    const homeworkId = Number(req.query.homework_id);
 
     if (!(await isInstructorOrTA(userId, classroomId))) {
       return res.status(403).json({ success: false, message: 'Only instructors or TAs can clear plagiarism results' });
     }
+    if (!homeworkId) {
+      return res.status(400).json({ success: false, message: 'Please select a homework set before clearing plagiarism results' });
+    }
 
     const [result] = await db.query(
-      `DELETE pf
+        `DELETE pf
        FROM plagiarism_flags pf
        JOIN submissions s1 ON pf.submission_id_1 = s1.submission_id
        JOIN questions q ON s1.question_id = q.question_id
        JOIN homework h ON q.homework_id = h.homework_id
-       WHERE h.classroom_id = ?`,
-      [classroomId]
+         WHERE h.classroom_id = ? AND h.homework_id = ?`,
+        [classroomId, homeworkId]
     );
 
     res.json({ success: true, message: `Cleared ${result.affectedRows} plagiarism result(s).`, deleted_count: result.affectedRows });

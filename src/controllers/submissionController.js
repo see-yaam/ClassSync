@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const crypto = require('crypto');
+const { calculateSimilarity } = require('./plagiarismController');
 
 // Compute SHA256/MD5 Hash for code plagiarism comparison
 const computeCodeHash = (text) => {
@@ -8,6 +9,59 @@ const computeCodeHash = (text) => {
 };
 
 // POST /api/questions/:id/submit - Create / Overwrite Submission
+const refreshHomeworkPlagiarismChecks = async ({ classroomId, homeworkId, actorUserId }) => {
+  if (!classroomId || !homeworkId) return;
+
+  const [submissions] = await db.query(
+    `SELECT s.submission_id, s.question_id, s.learner_id, s.code_content
+     FROM submissions s
+     JOIN questions q ON s.question_id = q.question_id
+     JOIN homework h ON q.homework_id = h.homework_id
+    WHERE h.classroom_id = ? AND h.homework_id = ?
+      AND h.is_active = true
+      AND s.submission_type = 'text'
+      AND s.code_content IS NOT NULL
+      AND TRIM(s.code_content) != ''
+    ORDER BY s.submission_id ASC`,
+    [classroomId, homeworkId]
+  );
+
+  await db.query(
+    `DELETE pf
+     FROM plagiarism_flags pf
+     JOIN submissions s1 ON pf.submission_id_1 = s1.submission_id
+     JOIN questions q1 ON s1.question_id = q1.question_id
+     JOIN homework h1 ON q1.homework_id = h1.homework_id
+    WHERE h1.classroom_id = ? AND h1.homework_id = ?`,
+    [classroomId, homeworkId]
+  );
+
+  for (let i = 0; i < submissions.length; i++) {
+    for (let j = i + 1; j < submissions.length; j++) {
+      const sub1 = submissions[i];
+      const sub2 = submissions[j];
+
+      if (sub1.question_id === sub2.question_id && sub1.learner_id !== sub2.learner_id) {
+        const similarityScore = calculateSimilarity(sub1.code_content, sub2.code_content);
+        const id1 = Math.min(sub1.submission_id, sub2.submission_id);
+        const id2 = Math.max(sub1.submission_id, sub2.submission_id);
+
+        await db.query(
+          `INSERT INTO plagiarism_flags (submission_id_1, submission_id_2, similarity_score, flagged_by)
+           VALUES (?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             similarity_score = VALUES(similarity_score),
+             flagged_by = VALUES(flagged_by),
+             updated_at = NOW()`,
+          [id1, id2, similarityScore, actorUserId || 0]
+        );
+      }
+    }
+  }
+
+  return submissions.length;
+};
+
 const submitQuestionSolution = async (req, res) => {
   try {
     const questionId = req.params.id;
@@ -99,6 +153,12 @@ const submitQuestionSolution = async (req, res) => {
       );
       submissionId = result.insertId;
     }
+
+    await refreshHomeworkPlagiarismChecks({
+      classroomId: homework.classroom_id,
+      homeworkId: homework.homework_id,
+      actorUserId: learnerId
+    });
 
     res.json({
       success: true,
@@ -318,6 +378,7 @@ const getSubmissionById = async (req, res) => {
 
 module.exports = {
   submitQuestionSolution,
+  refreshHomeworkPlagiarismChecks,
   getSubmissionMatrix,
   getQuestionSubmissions,
   getSubmissionById

@@ -349,6 +349,59 @@ const updateQuestion = async (req, res) => {
   }
 };
 
+// DELETE /api/questions/:id - Delete a question and its dependent records
+const deleteQuestion = async (req, res) => {
+  const connection = await db.getConnection();
+  try {
+    const questionId = req.params.id;
+    const userId = req.user.user_id;
+
+    const [rows] = await connection.query(
+      `SELECT q.homework_id, h.classroom_id
+       FROM questions q
+       JOIN homework h ON q.homework_id = h.homework_id
+       WHERE q.question_id = ? AND h.is_active = true`,
+      [questionId]
+    );
+    if (rows.length === 0) return res.status(404).json({ success: false, message: 'Question not found' });
+
+    if (!(await isInstructor(userId, rows[0].classroom_id))) {
+      return res.status(403).json({ success: false, message: 'Only the instructor can delete a question' });
+    }
+
+    await connection.beginTransaction();
+    const [submissions] = await connection.query(
+      `SELECT submission_id FROM submissions WHERE question_id = ?`,
+      [questionId]
+    );
+    const submissionIds = submissions.map(submission => submission.submission_id);
+
+    if (submissionIds.length > 0) {
+      const placeholders = submissionIds.map(() => '?').join(', ');
+      await connection.query(
+        `DELETE FROM plagiarism_flags
+         WHERE submission_id_1 IN (${placeholders}) OR submission_id_2 IN (${placeholders})`,
+        [...submissionIds, ...submissionIds]
+      );
+      await connection.query(`DELETE FROM code_reviews WHERE submission_id IN (${placeholders})`, submissionIds);
+      await connection.query(`DELETE FROM grades WHERE submission_id IN (${placeholders})`, submissionIds);
+      await connection.query(`DELETE FROM submissions WHERE submission_id IN (${placeholders})`, submissionIds);
+    }
+
+    await connection.query(`DELETE FROM homework_answers WHERE question_id = ?`, [questionId]);
+    await connection.query(`DELETE FROM questions WHERE question_id = ?`, [questionId]);
+    await connection.commit();
+
+    res.json({ success: true, message: 'Question deleted successfully' });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error deleting question:', error);
+    res.status(500).json({ success: false, message: error.message });
+  } finally {
+    connection.release();
+  }
+};
+
 // GET /api/questions/:id/answer - Get answer key (learner can ONLY see if they submitted)
 const getQuestionAnswer = async (req, res) => {
   try {
@@ -400,6 +453,37 @@ const getQuestionAnswer = async (req, res) => {
   }
 };
 
+// DELETE /api/questions/:id/answer - Delete an instructor answer key
+const deleteQuestionAnswer = async (req, res) => {
+  try {
+    const questionId = req.params.id;
+    const userId = req.user.user_id;
+
+    const [rows] = await db.query(
+      `SELECT h.classroom_id
+       FROM questions q
+       JOIN homework h ON q.homework_id = h.homework_id
+       WHERE q.question_id = ? AND h.is_active = true`,
+      [questionId]
+    );
+    if (rows.length === 0) return res.status(404).json({ success: false, message: 'Question not found' });
+
+    if (!(await isInstructor(userId, rows[0].classroom_id))) {
+      return res.status(403).json({ success: false, message: 'Only the instructor can delete an answer key' });
+    }
+
+    const [result] = await db.query(`DELETE FROM homework_answers WHERE question_id = ?`, [questionId]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'No answer key found for this question' });
+    }
+
+    res.json({ success: true, message: 'Answer key deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting answer key:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   createHomework,
   updateHomework,
@@ -409,5 +493,7 @@ module.exports = {
   getHomeworkById,
   addQuestion,
   updateQuestion,
-  getQuestionAnswer
+  deleteQuestion,
+  getQuestionAnswer,
+  deleteQuestionAnswer
 };
