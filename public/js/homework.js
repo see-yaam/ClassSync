@@ -131,7 +131,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             </h3>
             <div style="display: flex; align-items: center; gap: 0.5rem;">
               ${typeBadge}
-              ${isInstructor ? `<button class="btn btn-outline btn-sm" onclick="openEditQuestionModal(${q.question_id})"><i class="fa-solid fa-pen"></i> Edit Question</button>` : ''}
+              ${isInstructor ? `
+                <button class="btn btn-outline btn-sm" onclick="openEditQuestionModal(${q.question_id})">
+                  <i class="fa-solid fa-pen"></i> Edit Question
+                </button>
+                <button class="btn btn-outline btn-sm" style="border-color: var(--status-red); color: var(--status-red);" onclick="deleteQuestionItem(${q.question_id})">
+                  <i class="fa-solid fa-trash"></i> Delete Question
+                </button>
+              ` : ''}
             </div>
           </div>
 
@@ -211,16 +218,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
           </div>
 
-          <!-- Staff Submission List Viewer -->
-          ${homeworkData.is_staff ? `
-            <div style="padding-top: 1rem; border-top: 1px solid var(--border-color);">
-              <h4 style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.5rem;">Staff View: Learner Submissions for Question ${idx + 1}</h4>
-              <button class="btn btn-outline btn-sm" onclick="loadSubmissionsForQ(${q.question_id})">
-                <i class="fa-solid fa-users-viewfinder"></i> Load Submissions Roster
-              </button>
-              <div id="staff-subs-list-${q.question_id}" style="margin-top: 0.75rem;"></div>
-            </div>
-          ` : ''}
         </div>
       `;
     }).join('');
@@ -335,72 +332,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       `;
     } catch (err) {
       box.innerHTML = `<p style="font-size: 0.8rem; color: var(--status-red); font-weight: 600;"><i class="fa-solid fa-lock"></i> ${err.message}</p>`;
-    }
-  };
-
-  window.loadSubmissionsForQ = async (questionId) => {
-    const container = document.getElementById(`staff-subs-list-${questionId}`);
-    container.innerHTML = renderSkeletonRows(2);
-
-    try {
-      const res = await apiFetch(`/questions/${questionId}/submissions`);
-      const subs = res.data;
-
-      if (subs.length === 0) {
-        container.innerHTML = renderEmptyState({
-          icon: 'inbox',
-          title: 'No Submissions Yet',
-          message: 'No learner submissions recorded for this question yet.'
-        });
-        return;
-      }
-
-      container.innerHTML = `
-        <div class="table-responsive">
-          <table>
-            <thead>
-              <tr>
-                <th>Learner</th>
-                <th>Format Submitted</th>
-                <th>Submitted At</th>
-                <th>Timing</th>
-                <th>Score</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${subs.map(s => `
-                <tr>
-                  <td>
-                    <div style="font-weight: 700;">${escapeHtml(s.learner_name)}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(s.learner_email)}</div>
-                  </td>
-                  <td>${getSubmissionTypeBadge(s.submission_type)}</td>
-                  <td style="color: var(--text-muted);">${new Date(s.submitted_at).toLocaleString()}</td>
-                  <td>
-                    ${s.is_late ? `<span class="badge badge-yellow">Late (-${s.penalty_applied}%)</span>` : '<span class="badge badge-green">On Time</span>'}
-                  </td>
-                  <td style="font-weight: 700;">
-                    ${s.score !== null ? `${s.score} pts` : '<span class="badge badge-gray">Not Graded</span>'}
-                  </td>
-                  <td>
-                    <div style="display: flex; flex-direction: column; gap: 0.5rem; min-width: 150px;">
-                      <button class="btn btn-outline btn-sm" onclick="openSubmissionPreviewModal(${s.submission_id})">
-                        <i class="fa-solid fa-eye"></i> View Answer
-                      </button>
-                      <button class="btn btn-primary btn-sm" onclick="openGradeModal(${s.submission_id})">
-                        <i class="fa-solid fa-pen-ruler"></i> Grade & Review (${s.review_count})
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-      `;
-    } catch (err) {
-      container.innerHTML = `<div style="padding: 1rem; border-radius: 8px; background-color: rgba(239,68,68,0.1); color: var(--status-red); font-size: 0.85rem;">Error: ${err.message}</div>`;
     }
   };
 
@@ -629,6 +560,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Setup dropzones for Add Question Modal
   setupDropzone('q-dropzone', 'q-file-picker', 'q-file-status', 'q-file-url', 'q-text');
   setupDropzone('q-ans-dropzone', 'q-ans-file-picker', 'q-ans-file-status', 'q-ans-file-url', 'q-ans-text');
+  setupDropzone('answer-key-dropzone', 'answer-key-file-picker', 'answer-key-file-status', 'answer-key-file-url');
 
   // Add Question Modal
   const addQModal = document.getElementById('add-q-modal');
@@ -669,7 +601,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('q-text').value = question.question_text || '';
     document.getElementById('q-points').value = question.points || 10;
     document.getElementById('q-order').value = question.order_number || 0;
-    document.getElementById('q-file-url').value = question.question_data || '';
     document.getElementById('q-file-picker').value = '';
     document.getElementById('q-ans-file-picker').value = '';
     document.getElementById('q-ans-text').value = '';
@@ -677,6 +608,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     clearDropzoneAttachment('q-ans-file-url', 'q-ans-file-status');
 
     if (question.question_data) {
+      document.getElementById('q-file-url').value = question.question_data;
       document.getElementById('q-file-status').innerHTML = `<div class="file-chip"><i class="fa-solid fa-file"></i> Current attachment: <a href="${question.question_data}" target="_blank">Open file</a></div>`;
     }
 
@@ -692,6 +624,100 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     addQModal.classList.add('active');
+  };
+
+  window.deleteQuestionItem = (questionId) => {
+    showConfirmModal({
+      title: 'Delete this question?',
+      message: 'This will permanently delete the question, answer key, submissions, grades, reviews, and plagiarism results linked to it.',
+      confirmText: 'Delete Question',
+      confirmClass: 'btn-destructive',
+      onConfirm: async () => {
+        try {
+          const res = await apiFetch(`/questions/${questionId}`, { method: 'DELETE' });
+          showToast(res.message, 'success');
+          await loadHomeworkDetails();
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      }
+    });
+  };
+
+  const answerKeyModal = document.getElementById('answer-key-modal');
+  const answerKeyForm = document.getElementById('answer-key-form');
+  let answerKeyQuestionId = null;
+
+  window.openAnswerKeyModal = async (questionId, editExisting = false) => {
+    const question = homeworkData?.questions?.find(q => Number(q.question_id) === Number(questionId));
+    if (!question) return;
+
+    answerKeyQuestionId = questionId;
+    answerKeyForm.reset();
+    clearDropzoneAttachment('answer-key-file-url', 'answer-key-file-status');
+    document.getElementById('answer-key-text').value = '';
+    document.getElementById('answer-key-modal-title').textContent = editExisting ? 'Edit Answer Key' : 'Upload Answer Key';
+    document.getElementById('answer-key-modal-question').textContent = `Question ${question.order_number || ''}`;
+
+    if (editExisting) try {
+      const answer = await apiFetch(`/questions/${questionId}/answer`);
+      document.getElementById('answer-key-text').value = answer.data?.answer_text || '';
+      if (answer.data?.answer_file_url) {
+        document.getElementById('answer-key-file-url').value = answer.data.answer_file_url;
+        document.getElementById('answer-key-file-status').innerHTML = `<div class="file-chip"><i class="fa-solid fa-file"></i> Current answer file: <a href="${answer.data.answer_file_url}" target="_blank">Open file</a></div>`;
+      }
+    } catch (err) {
+      if (!err.message.includes('No answer key')) showToast(`Could not load answer key: ${err.message}`, 'error');
+    }
+
+    answerKeyModal.classList.add('active');
+  };
+
+  window.deleteAnswerKey = (questionId) => {
+    showConfirmModal({
+      title: 'Delete this answer key?',
+      message: 'Learners will no longer be able to view the instructor answer key for this question.',
+      confirmText: 'Delete Answer Key',
+      confirmClass: 'btn-destructive',
+      onConfirm: async () => {
+        try {
+          const res = await apiFetch(`/questions/${questionId}/answer`, { method: 'DELETE' });
+          showToast(res.message, 'success');
+          await loadHomeworkDetails();
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      }
+    });
+  };
+
+  document.getElementById('close-answer-key-modal').onclick = () => answerKeyModal.classList.remove('active');
+  document.getElementById('cancel-answer-key-btn').onclick = () => answerKeyModal.classList.remove('active');
+
+  answerKeyForm.onsubmit = async event => {
+    event.preventDefault();
+    const question = homeworkData?.questions?.find(q => Number(q.question_id) === Number(answerKeyQuestionId));
+    if (!question) return;
+
+    try {
+      await apiFetch(`/questions/${answerKeyQuestionId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          question_type: question.question_type || 'text',
+          question_text: question.question_text,
+          question_data: question.question_data || null,
+          points: question.points,
+          order_number: question.order_number,
+          answer_text: document.getElementById('answer-key-text').value,
+          answer_file_url: document.getElementById('answer-key-file-url').value || null
+        })
+      });
+      answerKeyModal.classList.remove('active');
+      showToast('Answer key saved successfully!', 'success');
+      await loadHomeworkDetails();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
   };
 
   document.getElementById('add-q-form').onsubmit = async (e) => {

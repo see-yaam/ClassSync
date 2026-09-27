@@ -39,7 +39,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (tabName === 'tab-alerts') loadAlertsTab();
       if (tabName === 'tab-live') loadLiveTab();
       if (tabName === 'tab-messages') loadMessagesTab();
-      if (tabName === 'tab-plagiarism') loadPlagiarismTab();
       if (tabName === 'tab-student-info') loadStudentInfoTab();
       if (tabName === 'tab-gradings') loadGradingsTab();
       if (tabName === 'tab-requests') loadRequestsTab();
@@ -232,11 +231,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       selectEl.onchange = async () => {
         const hwId = selectEl.value;
+        const plagiarismSelect = document.getElementById('plagiarism-hw-select');
+        if (plagiarismSelect && hwId) plagiarismSelect.value = hwId;
         if (!hwId) {
           containerEl.innerHTML = renderEmptyState({
             icon: 'table-cells',
             title: 'Select a Homework Set',
             message: 'Choose a homework set from the dropdown above to render the submission matrix.'
+          });
+          document.getElementById('submission-roster-container').innerHTML = renderEmptyState({
+            icon: 'users-viewfinder',
+            title: 'Select a Homework Set',
+            message: 'Choose a homework set from the dropdown above to view learner submissions.'
           });
           return;
         }
@@ -269,26 +275,26 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <tr>
                   <td>
                     <div style="font-weight: 700; display: flex; align-items: center; gap: 0.4rem;">
-                      ${row.full_name}
+                      ${escapeHtml(row.full_name)}
                       ${row.streak >= 3 ? `
                         <span class="badge badge-yellow" style="font-size: 0.7rem; border-radius: 999px;">
                           <i class="fa-solid fa-fire text-amber-500"></i> ${row.streak} STREAK
                         </span>
                       ` : ''}
                     </div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted);">${row.email}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(row.email)}</div>
                   </td>
                   ${questions.map(q => {
-          const qData = row.questions[q.question_id];
-          let badgeClass = qData.status === 'green' ? 'badge-green' : qData.status === 'orange' ? 'badge-yellow' : 'badge-gray';
-          return `
+                    const qData = row.questions[q.question_id];
+                    const badgeClass = qData.status === 'green' ? 'badge-green' : qData.status === 'orange' ? 'badge-yellow' : 'badge-gray';
+                    return `
                       <td style="text-align: center;">
                         <span class="badge ${badgeClass}">
                           ${qData.label} ${qData.score !== null ? `(${qData.score}pts)` : ''}
                         </span>
                       </td>
                     `;
-        }).join('')}
+                  }).join('')}
                   <td style="text-align: center; font-weight: 700;">${row.total_earned} / ${row.total_possible}</td>
                   <td style="text-align: center; color: var(--text-muted);">${row.late_count}</td>
                 </tr>
@@ -296,7 +302,34 @@ document.addEventListener('DOMContentLoaded', async () => {
             </tbody>
           </table>
         `;
+        if (document.querySelector('.matrix-view-tab.active')?.dataset.matrixView === 'roster') {
+          loadSubmissionRoster(hwId);
+        }
       };
+
+      const matrixViewTabs = document.querySelectorAll('.matrix-view-tab');
+      matrixViewTabs.forEach(tab => {
+        tab.onclick = () => {
+          matrixViewTabs.forEach(item => {
+            item.classList.remove('active');
+            item.classList.remove('btn-primary');
+            item.classList.add('btn-outline');
+          });
+
+          tab.classList.add('active');
+          tab.classList.remove('btn-outline');
+          tab.classList.add('btn-primary');
+
+          const activeView = tab.dataset.matrixView;
+          const showRoster = activeView === 'roster';
+          const showPlagiarism = activeView === 'plagiarism';
+          containerEl.style.display = activeView === 'matrix' ? 'block' : 'none';
+          document.getElementById('submission-roster-container').style.display = showRoster ? 'block' : 'none';
+          document.getElementById('plagiarism-container').style.display = showPlagiarism ? 'block' : 'none';
+          if (showRoster && selectEl.value) loadSubmissionRoster(selectEl.value);
+          if (showPlagiarism) loadPlagiarismTab();
+        };
+      });
 
       containerEl.innerHTML = renderEmptyState({
         icon: 'table-cells',
@@ -305,6 +338,155 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     } catch (err) {
       containerEl.innerHTML = `<div class="card"><p style="color: var(--status-red);">Error: ${err.message}</p></div>`;
+    }
+  };
+
+  const loadSubmissionRoster = async (homeworkId) => {
+    const rosterEl = document.getElementById('submission-roster-container');
+    rosterEl.innerHTML = renderSkeletonRows(3);
+
+    try {
+      const homeworkRes = await apiFetch(`/homework/${homeworkId}`);
+      const questions = homeworkRes.data.questions || [];
+      const submissionGroups = await Promise.all(questions.map(async question => {
+        const response = await apiFetch(`/questions/${question.question_id}/submissions`);
+        return response.data.map(submission => ({ ...submission, question_text: question.question_text }));
+      }));
+      const submissions = submissionGroups.flat();
+
+      if (submissions.length === 0) {
+        rosterEl.innerHTML = renderEmptyState({
+          icon: 'inbox',
+          title: 'No Submissions Yet',
+          message: 'No learner submissions have been recorded for this homework set.'
+        });
+        return;
+      }
+
+      rosterEl.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Assignment / Question</th>
+              <th>Submitted</th>
+              <th>Score</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${submissions.map(submission => `
+              <tr>
+                <td>
+                  <div style="font-weight: 700;">${escapeHtml(submission.learner_name)}</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(submission.learner_email)}</div>
+                </td>
+                <td>${escapeHtml(submission.question_text || 'Assignment question')}</td>
+                <td style="color: var(--text-muted);">${new Date(submission.submitted_at).toLocaleString()}</td>
+                <td style="font-weight: 700;">${submission.score !== null ? `${submission.score} pts` : '<span class="badge badge-gray">Not Graded</span>'}</td>
+                <td>
+                  <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <button class="btn btn-outline btn-sm" onclick="openClassroomSubmissionView(${submission.submission_id})" title="View submitted answer">
+                      <i class="fa-solid fa-eye"></i> View
+                    </button>
+                    <button class="btn btn-primary btn-sm" onclick="openClassroomGradeModal(${submission.submission_id})" title="Grade submission">
+                      <i class="fa-solid fa-pen-ruler"></i> Grade
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    } catch (err) {
+      rosterEl.innerHTML = `<div class="card"><p style="color: var(--status-red);">Error: ${escapeHtml(err.message)}</p></div>`;
+    }
+  };
+
+  const classroomViewModal = document.getElementById('classroom-submission-view-modal');
+  const classroomGradeModal = document.getElementById('classroom-grade-modal');
+  let activeClassroomSubmissionId = null;
+
+  document.getElementById('close-classroom-submission-view').onclick = () => classroomViewModal.classList.remove('active');
+  document.getElementById('close-classroom-grade').onclick = () => classroomGradeModal.classList.remove('active');
+  document.getElementById('cancel-classroom-grade').onclick = () => classroomGradeModal.classList.remove('active');
+
+  window.openClassroomSubmissionView = async (submissionId) => {
+    const titleEl = document.getElementById('classroom-submission-title');
+    const typeEl = document.getElementById('classroom-submission-type');
+    const contentEl = document.getElementById('classroom-submission-content');
+    classroomViewModal.classList.add('active');
+    titleEl.textContent = 'Loading submission...';
+    contentEl.textContent = 'Loading answer...';
+
+    try {
+      const response = await apiFetch(`/submissions/${submissionId}`);
+      const submission = response.data || {};
+      titleEl.textContent = `Submission by ${submission.learner_name || 'Learner'}`;
+      typeEl.textContent = `Format: ${submission.submission_type || 'Text'}`;
+      contentEl.innerHTML = submission.code_content
+        ? `<pre style="white-space: pre-wrap; margin: 0;">${escapeHtml(submission.code_content)}</pre>`
+        : submission.file_url
+          ? `<a href="${escapeHtml(submission.file_url)}" target="_blank" class="btn btn-outline btn-sm"><i class="fa-solid fa-file-arrow-down"></i> Open submitted file</a>`
+          : 'No submitted content available.';
+    } catch (err) {
+      contentEl.textContent = err.message;
+    }
+  };
+
+  window.openClassroomGradeModal = async (submissionId) => {
+    activeClassroomSubmissionId = submissionId;
+    const learnerEl = document.getElementById('classroom-grade-learner');
+    const contentEl = document.getElementById('classroom-grade-content');
+    document.getElementById('classroom-grade-error').style.display = 'none';
+    document.getElementById('classroom-grade-score').value = '';
+    document.getElementById('classroom-grade-feedback').value = '';
+    learnerEl.textContent = 'Loading submission...';
+    contentEl.textContent = 'Loading answer...';
+    classroomGradeModal.classList.add('active');
+
+    try {
+      const response = await apiFetch(`/submissions/${submissionId}`);
+      const submission = response.data || {};
+      learnerEl.textContent = `Learner: ${submission.learner_name || 'Learner'}`;
+      contentEl.innerHTML = submission.code_content
+        ? `<pre style="white-space: pre-wrap; margin: 0;">${escapeHtml(submission.code_content)}</pre>`
+        : submission.file_url
+          ? `<a href="${escapeHtml(submission.file_url)}" target="_blank" class="btn btn-outline btn-sm"><i class="fa-solid fa-file-arrow-down"></i> Open submitted file</a>`
+          : 'No content provided';
+      document.getElementById('classroom-grade-score').value = submission.score ?? '';
+      document.getElementById('classroom-grade-feedback').value = submission.feedback || '';
+    } catch (err) {
+      learnerEl.textContent = err.message;
+    }
+  };
+
+  document.getElementById('classroom-grade-form').onsubmit = async event => {
+    event.preventDefault();
+    const errorEl = document.getElementById('classroom-grade-error');
+    const score = document.getElementById('classroom-grade-score').value;
+    if (!score || !activeClassroomSubmissionId) {
+      errorEl.textContent = 'Grade score is required.';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    try {
+      await apiFetch(`/submissions/${activeClassroomSubmissionId}/grade`, {
+        method: 'POST',
+        body: JSON.stringify({
+          score,
+          feedback: document.getElementById('classroom-grade-feedback').value,
+          is_draft: false
+        })
+      });
+      classroomGradeModal.classList.remove('active');
+      showToast('Grade saved successfully!', 'success');
+      if (document.getElementById('matrix-hw-select').value) loadSubmissionRoster(document.getElementById('matrix-hw-select').value);
+    } catch (err) {
+      errorEl.textContent = err.message;
+      errorEl.style.display = 'block';
     }
   };
 
@@ -686,18 +868,58 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
   // TAB 8: Plagiarism Scan
+  let showHighRiskOnly = false;
+
   const loadPlagiarismTab = async () => {
     const container = document.getElementById('plagiarism-flags-list');
+    const matrixSelect = document.getElementById('matrix-hw-select');
+    const homeworkSelect = matrixSelect || document.getElementById('plagiarism-hw-select');
+    const duplicatePlagiarismSelect = document.getElementById('plagiarism-hw-select');
+
+    if (duplicatePlagiarismSelect && duplicatePlagiarismSelect !== homeworkSelect) {
+      duplicatePlagiarismSelect.style.display = 'none';
+      duplicatePlagiarismSelect.disabled = true;
+    }
+
     container.innerHTML = renderSkeletonRows(3);
     try {
-      const res = await apiFetch(`/classrooms/${classroomId}/plagiarism-flags`);
-      const flags = res.data;
+      if (homeworkSelect && homeworkSelect.options.length <= 1) {
+        const homeworkRes = await apiFetch(`/classrooms/${classroomId}/homework`);
+        homeworkSelect.innerHTML = '<option value="">Select Homework Set</option>' +
+          homeworkRes.data.map(homework => `<option value="${homework.homework_id}">${escapeHtml(homework.title)}</option>`).join('');
+      }
 
-      if (flags.length === 0) {
+      if (homeworkSelect && !homeworkSelect.value && matrixSelect && matrixSelect.value) homeworkSelect.value = matrixSelect.value;
+
+      if (!homeworkSelect || !homeworkSelect.value) {
         container.innerHTML = renderEmptyState({
           icon: 'magnifying-glass-chart',
-          title: 'No Plagiarism Flags Detected',
-          message: 'Run a code hash similarity scan across learner submissions to detect potential plagiarism.'
+          title: 'Select a Homework Set',
+          message: 'Choose one homework set above before viewing or scanning plagiarism results.'
+        });
+        return;
+      }
+
+      const res = await apiFetch(`/classrooms/${classroomId}/plagiarism-flags?homework_id=${encodeURIComponent(homeworkSelect.value)}`);
+      const flags = res.data;
+      const visibleFlags = showHighRiskOnly
+        ? flags.filter(flag => Number(flag.similarity_score || 0) > 75)
+        : flags;
+      const highRiskFilterBtn = document.getElementById('high-risk-plagiarism-btn');
+
+      if (highRiskFilterBtn) {
+        highRiskFilterBtn.innerHTML = showHighRiskOnly
+          ? '<i class="fa-solid fa-list"></i> Show All Results'
+          : '<i class="fa-solid fa-triangle-exclamation"></i> Show High Risk Only';
+      }
+
+      if (visibleFlags.length === 0) {
+        container.innerHTML = renderEmptyState({
+          icon: showHighRiskOnly ? 'triangle-exclamation' : 'magnifying-glass-chart',
+          title: showHighRiskOnly ? 'No High-Risk Matches Found' : 'No Plagiarism Flags Detected',
+          message: showHighRiskOnly
+            ? 'No similarity matches above 75% were found for this homework set.'
+            : 'Run a code hash similarity scan across learner submissions to detect potential plagiarism.'
         });
         return;
       }
@@ -715,12 +937,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             </tr>
           </thead>
           <tbody>
-            ${flags.map(f => {
+            ${visibleFlags.map(f => {
               const score = Number(f.similarity_score || 0);
-              const isHighRisk = score >= 80;
-              const matchBadgeClass = isHighRisk ? 'badge-red' : 'badge-green';
-              const matchBadgeIcon = isHighRisk ? 'fa-solid fa-triangle-exclamation' : 'fa-solid fa-check';
-              const riskLabel = isHighRisk ? 'High Risk' : 'Low Risk';
+              const isHighRisk = score > 75;
+              const isMediumRisk = score >= 25 && score <= 75;
+              const riskLabel = isHighRisk ? 'High Risk' : isMediumRisk ? 'Risk' : 'Low Risk';
+              const riskBadgeClass = isHighRisk ? 'badge-red' : isMediumRisk ? 'badge-orange' : 'badge-green';
+              const riskBadgeIcon = isHighRisk
+                ? 'fa-solid fa-triangle-exclamation'
+                : isMediumRisk
+                  ? 'fa-solid fa-triangle-exclamation'
+                  : 'fa-solid fa-check';
 
               return `
                 <tr>
@@ -731,10 +958,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                   <td>${escapeHtml(f.learner_1_name)}</td>
                   <td>${escapeHtml(f.learner_2_name)}</td>
                   <td>
-                    <span class="badge ${matchBadgeClass}"><i class="${matchBadgeIcon}"></i> ${score.toFixed(2)}% Match</span>
+                    <span class="badge ${riskBadgeClass}"><i class="${riskBadgeIcon}"></i> ${score.toFixed(2)}% Match</span>
                   </td>
                   <td>
-                    <span class="badge ${isHighRisk ? 'badge-red' : 'badge-green'}">${riskLabel}</span>
+                    <span class="badge ${riskBadgeClass}">${riskLabel}</span>
                   </td>
                   <td>
                     ${f.is_reviewed
@@ -751,6 +978,30 @@ document.addEventListener('DOMContentLoaded', async () => {
       container.innerHTML = `<div class="card"><p style="color: var(--status-red);">Error: ${err.message}</p></div>`;
     }
   };
+
+  const plagiarismSelect = document.getElementById('plagiarism-hw-select');
+  const sharedHomeworkSelect = document.getElementById('matrix-hw-select');
+  const highRiskFilterBtn = document.getElementById('high-risk-plagiarism-btn');
+  if (highRiskFilterBtn) {
+    highRiskFilterBtn.onclick = () => {
+      showHighRiskOnly = !showHighRiskOnly;
+      loadPlagiarismTab();
+    };
+  }
+  if (plagiarismSelect) {
+    plagiarismSelect.onchange = () => {
+      if (sharedHomeworkSelect) sharedHomeworkSelect.value = plagiarismSelect.value;
+      loadPlagiarismTab();
+    };
+  }
+  if (sharedHomeworkSelect) {
+    sharedHomeworkSelect.onchange = async () => {
+      if (plagiarismSelect) plagiarismSelect.value = sharedHomeworkSelect.value;
+      if (document.querySelector('.matrix-view-tab.active')?.dataset.matrixView === 'plagiarism') {
+        loadPlagiarismTab();
+      }
+    };
+  }
 
   // TAB: Student Info Roster & Attendance (Staff Only)
   let cachedStudentInfoList = [];
@@ -1829,7 +2080,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         confirmClass: 'btn-destructive',
         onConfirm: async () => {
           try {
-            const res = await apiFetch(`/classrooms/${classroomId}/plagiarism-flags`, { method: 'DELETE' });
+            const homeworkId = document.getElementById('matrix-hw-select')?.value || document.getElementById('plagiarism-hw-select')?.value;
+            if (!homeworkId) {
+              showToast('Please select a homework set first.', 'error');
+              return;
+            }
+            const res = await apiFetch(`/classrooms/${classroomId}/plagiarism-flags?homework_id=${encodeURIComponent(homeworkId)}`, { method: 'DELETE' });
             showToast(res.message, 'success');
             loadPlagiarismTab();
           } catch (err) {
@@ -1841,9 +2097,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   if (runPlagBtn) {
     runPlagBtn.onclick = async () => {
+      const sharedHomeworkId = document.getElementById('matrix-hw-select')?.value || document.getElementById('plagiarism-hw-select')?.value;
+      const homeworkId = sharedHomeworkId;
+      if (!homeworkId) {
+        showToast('Please select a homework set first.', 'error');
+        return;
+      }
       showToast('Running plagiarism code hash scan across classroom submissions...', 'info');
       try {
-        const res = await apiFetch(`/classrooms/${classroomId}/plagiarism-check`, { method: 'POST' });
+        const res = await apiFetch(`/classrooms/${classroomId}/plagiarism-check`, {
+          method: 'POST',
+          body: JSON.stringify({ homework_id: homeworkId })
+        });
         showToast(res.message, 'success');
         loadPlagiarismTab();
       } catch (err) {

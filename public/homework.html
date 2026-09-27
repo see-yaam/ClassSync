@@ -111,6 +111,36 @@
     </div>
   </div>
 
+  <!-- Direct Answer Key Upload Modal -->
+  <div class="modal" id="answer-key-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 style="font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+          <i class="fa-solid fa-key" style="color: var(--primary-color);"></i> <span id="answer-key-modal-title">Upload Answer Key</span> - <span id="answer-key-modal-question">Question</span>
+        </h3>
+        <button class="modal-close" id="close-answer-key-modal">&times;</button>
+      </div>
+      <form id="answer-key-form">
+        <div class="form-group">
+          <label for="answer-key-text">Solution Content</label>
+          <textarea id="answer-key-text" class="form-control" style="height: 120px;" placeholder="Write the official solution or explanation..."></textarea>
+        </div>
+        <div class="file-dropzone" id="answer-key-dropzone" onclick="document.getElementById('answer-key-file-picker').click()">
+          <i class="fa-solid fa-cloud-arrow-up file-dropzone-icon"></i>
+          <div class="file-dropzone-text">Upload Official Answer File</div>
+          <div class="file-dropzone-hint">PDF, DOCX, PPTX, code, or text file</div>
+          <input type="file" id="answer-key-file-picker" style="display:none;" accept=".pdf,.pptx,.docx,.txt,.py,.java,.cpp,.c,.sql,.js,.html,.css,.json">
+          <input type="hidden" id="answer-key-file-url" value="">
+          <div id="answer-key-file-status" style="margin-top: 0.25rem;"></div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.25rem;">
+          <button type="button" class="btn btn-outline" id="cancel-answer-key-btn">Cancel</button>
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Answer Key</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Submission Preview Modal -->
   <div class="modal" id="submission-view-modal">
     <div class="modal-content submission-view-dialog">

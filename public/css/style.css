@@ -10,7 +10,7 @@
   /* vibrant royal blue - CTAs */
   --accent-hover: #1D4ED8;
 
-  --bg-color: #F8FAFC;
+  --bg-color: #EEF2F6;
   --card-bg: #FFFFFF;
 
   --text-main: #0F172A;
@@ -775,6 +775,48 @@ a:hover {
   border-radius: 6px;
 }
 
+.matrix-tab-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.matrix-view-tab {
+  min-height: 44px;
+  padding: 0.7rem 1.15rem;
+  font-size: 0.875rem;
+  border-radius: 9px;
+  white-space: nowrap;
+}
+
+.matrix-view-tab.active {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: #fff;
+  box-shadow: 0 4px 14px 0 rgba(29, 78, 216, 0.42);
+}
+
+.matrix-view-tab.active:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 640px) {
+  .matrix-tab-switcher {
+    align-items: stretch;
+  }
+
+  .matrix-view-tab {
+    flex: 1 1 100%;
+  }
+}
+
 /* Form Inputs */
 .form-group {
   margin-bottom: 1.25rem;
@@ -1085,6 +1127,11 @@ th {
 .badge-yellow {
   background-color: rgba(217, 119, 6, 0.15);
   color: #d97706;
+}
+
+.badge-orange {
+  background-color: rgba(234, 88, 12, 0.15);
+  color: #ea580c;
 }
 
 .badge-red {
