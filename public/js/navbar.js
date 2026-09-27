@@ -167,7 +167,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="noti-item ${n.is_read ? '' : 'unread'}${alertClass}" data-noti-id="${n.notification_id}" data-link="${n.link_url || ''}">
             <div class="title">${n.title}</div>
             <div class="noti-msg">${n.message}</div>
-            <div class="time">${new Date(n.created_at).toLocaleString()}</div>
+            <div class="time">${formatDate(n.created_at)}</div>
           </div>
         `}).join('');
 

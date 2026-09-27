@@ -941,6 +941,9 @@ a:hover {
 
 .card-info {
   width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .card-title {
@@ -967,6 +970,10 @@ a:hover {
   margin-bottom: 1.25rem;
   font-weight: 500;
   line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* Inner Nested Box Details */
@@ -980,6 +987,7 @@ a:hover {
   border-radius: 12px;
   border: 1px solid var(--border-color);
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15);
+  margin-top: auto;
 }
 
 .detail-row {
@@ -1016,11 +1024,6 @@ a:hover {
 }
 
 /* Classroom Action Layout */
-.card .btn {
-  width: 100%;
-  justify-content: center;
-  margin-top: 0.5rem;
-}
 
 .classroom-actions {
   margin-top: 1.5rem;

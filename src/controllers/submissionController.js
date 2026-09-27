@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const crypto = require('crypto');
 const { calculateSimilarity } = require('./plagiarismController');
+const { createNotification } = require('../utils/notificationHelper');
 
 // Compute SHA256/MD5 Hash for code plagiarism comparison
 const computeCodeHash = (text) => {
@@ -108,9 +109,16 @@ const submitQuestionSolution = async (req, res) => {
 
     // Upsert into submissions table using ON DUPLICATE KEY UPDATE
     const [existing] = await db.query(
-      `SELECT submission_id FROM submissions WHERE question_id = ? AND learner_id = ?`,
+      `SELECT s.submission_id, g.grade_id 
+       FROM submissions s
+       LEFT JOIN grades g ON s.submission_id = g.submission_id
+       WHERE s.question_id = ? AND s.learner_id = ?`,
       [questionId, learnerId]
     );
+
+    if (existing.length > 0 && existing[0].grade_id) {
+       return res.status(403).json({ success: false, message: 'This submission has already been graded and cannot be updated.' });
+    }
 
     let submissionId;
 
@@ -159,6 +167,28 @@ const submitQuestionSolution = async (req, res) => {
       homeworkId: homework.homework_id,
       actorUserId: learnerId
     });
+
+    // Notify instructors
+    const [learner] = await db.query(`SELECT full_name FROM users WHERE user_id = ?`, [learnerId]);
+    const learnerName = learner.length > 0 ? learner[0].full_name : 'A student';
+    
+    const [instructors] = await db.query(
+      `SELECT user_id FROM classroom_members WHERE classroom_id = ? AND role = 'instructor' AND is_active = true`,
+      [homework.classroom_id]
+    );
+
+    const [hwData] = await db.query(`SELECT title FROM homework WHERE homework_id = ?`, [homework.homework_id]);
+    const hwTitle = hwData.length > 0 ? hwData[0].title : 'Homework';
+
+    for (const inst of instructors) {
+      await createNotification(
+        inst.user_id,
+        'submission',
+        'New Homework Submission',
+        `${learnerName} has submitted a solution for "${hwTitle}".`,
+        `/classroom.html?id=${homework.classroom_id}&tab=matrix`
+      );
+    }
 
     res.json({
       success: true,
@@ -322,6 +352,94 @@ const getSubmissionMatrix = async (req, res) => {
   }
 };
 
+// GET /api/classrooms/:id/matrix - Full Classroom Submission Matrix
+const getClassroomSubmissionMatrix = async (req, res) => {
+  try {
+    const classroomId = req.params.id;
+
+    const [learners] = await db.query(
+      `SELECT u.user_id, u.full_name, u.email
+       FROM classroom_members cm
+       JOIN users u ON cm.user_id = u.user_id
+       WHERE cm.classroom_id = ? AND cm.role IN ('learner', 'TA') AND cm.is_active = true
+       ORDER BY u.full_name ASC`,
+      [classroomId]
+    );
+
+    const [homeworks] = await db.query(
+      `SELECT homework_id, title FROM homework WHERE classroom_id = ? AND is_active = true ORDER BY created_at ASC`,
+      [classroomId]
+    );
+
+    const [questions] = await db.query(
+      `SELECT q.question_id, q.homework_id, q.question_text, q.points, q.order_number
+       FROM questions q
+       JOIN homework h ON q.homework_id = h.homework_id
+       WHERE h.classroom_id = ? AND h.is_active = true
+       ORDER BY h.created_at ASC, q.order_number ASC, q.question_id ASC`,
+      [classroomId]
+    );
+
+    const [submissions] = await db.query(
+      `SELECT s.submission_id, s.question_id, s.learner_id, s.submitted_at, s.is_late, s.penalty_applied,
+              g.grade_id, g.score, g.feedback, g.is_draft, g.status
+       FROM submissions s
+       JOIN questions q ON s.question_id = q.question_id
+       JOIN homework h ON q.homework_id = h.homework_id
+       LEFT JOIN grades g ON s.submission_id = g.submission_id
+       WHERE h.classroom_id = ?`,
+      [classroomId]
+    );
+
+    const subMap = {};
+    for (const sub of submissions) {
+      subMap[`${sub.learner_id}_${sub.question_id}`] = sub;
+    }
+
+    const matrix = homeworks.map(hw => {
+      const hwQuestions = questions.filter(q => q.homework_id === hw.homework_id);
+      
+      const questionsData = hwQuestions.map(q => {
+        const learnerStatuses = {};
+        for (const learner of learners) {
+          const sub = subMap[`${learner.user_id}_${q.question_id}`];
+          if (!sub) {
+             learnerStatuses[learner.user_id] = { status: 'gray', label: 'Not submitted', score: null };
+          } else if (sub.is_late) {
+             learnerStatuses[learner.user_id] = { status: 'orange', label: 'Late', score: sub.score, submission_id: sub.submission_id, sub_status: sub.status };
+          } else {
+             learnerStatuses[learner.user_id] = { status: 'green', label: 'On time', score: sub.score, submission_id: sub.submission_id, sub_status: sub.status };
+          }
+        }
+        return {
+          question_id: q.question_id,
+          question_text: q.question_text,
+          order_number: q.order_number,
+          learnerStatuses
+        };
+      });
+
+      return {
+        homework_id: hw.homework_id,
+        title: hw.title,
+        questions: questionsData
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        learners,
+        matrix
+      }
+    });
+
+  } catch (error) {
+    console.error('Error computing full matrix:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // GET /api/questions/:id/submissions - List all submissions for a question
 const getQuestionSubmissions = async (req, res) => {
   try {
@@ -357,9 +475,11 @@ const getSubmissionById = async (req, res) => {
               u.full_name AS learner_name, u.email AS learner_email,
               s.code_content, s.file_url, s.submitted_at, s.is_late, s.penalty_applied,
               s.minutes_late, s.is_final,
-              g.score, g.feedback, g.grade_id
+              g.score, g.feedback, g.grade_id, g.status,
+              q.points AS max_score
        FROM submissions s
        JOIN users u ON s.learner_id = u.user_id
+       JOIN questions q ON s.question_id = q.question_id
        LEFT JOIN grades g ON s.submission_id = g.submission_id
        WHERE s.submission_id = ?`,
       [submissionId]
@@ -380,6 +500,7 @@ module.exports = {
   submitQuestionSolution,
   refreshHomeworkPlagiarismChecks,
   getSubmissionMatrix,
+  getClassroomSubmissionMatrix,
   getQuestionSubmissions,
   getSubmissionById
 };

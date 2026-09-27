@@ -176,18 +176,21 @@ const getClassroomHomework = async (req, res) => {
     let query = `
       SELECT h.homework_id, h.classroom_id, h.title, h.description, h.total_points, h.deadline, h.created_by,
              h.is_published, h.published_at, h.created_at, u.full_name AS creator_name,
-             (SELECT COUNT(*) FROM questions q WHERE q.homework_id = h.homework_id) AS question_count
+             (SELECT COUNT(*) FROM questions q WHERE q.homework_id = h.homework_id) AS question_count,
+             (SELECT COUNT(DISTINCT s.question_id) FROM submissions s JOIN questions q ON s.question_id = q.question_id WHERE q.homework_id = h.homework_id AND s.learner_id = ?) AS submitted_count
       FROM homework h
       JOIN users u ON h.created_by = u.user_id
       WHERE h.classroom_id = ? AND h.is_active = true
     `;
+
+    const params = [userId, classroomId];
 
     if (!isStaff) {
       query += ` AND h.is_published = true`;
     }
     query += ` ORDER BY h.created_at DESC`;
 
-    const [rows] = await db.query(query, [classroomId]);
+    const [rows] = await db.query(query, params);
     res.json({ success: true, data: rows });
   } catch (error) {
     console.error('Error fetching homework:', error);
@@ -225,7 +228,7 @@ const getHomeworkById = async (req, res) => {
     const [questions] = await db.query(
       `SELECT q.*, 
               s.submission_id, s.submission_type, s.submitted_at, s.is_late, s.penalty_applied, s.code_content, s.file_url,
-              g.grade_id, g.score, g.feedback, g.is_draft, g.graded_at
+              g.grade_id, g.score, g.feedback, g.is_draft, g.graded_at, g.status
        FROM questions q
        LEFT JOIN submissions s ON q.question_id = s.question_id AND s.learner_id = ?
        LEFT JOIN grades g ON s.submission_id = g.submission_id
@@ -484,6 +487,45 @@ const deleteQuestionAnswer = async (req, res) => {
   }
 };
 
+// PUT /api/homework/:id/questions/reorder - Reorder questions
+const reorderQuestions = async (req, res) => {
+  const connection = await db.getConnection();
+  try {
+    const homeworkId = req.params.id;
+    const { question_ids } = req.body;
+    const userId = req.user.user_id;
+
+    if (!Array.isArray(question_ids)) {
+      return res.status(400).json({ success: false, message: 'Invalid question_ids array' });
+    }
+
+    const [hw] = await connection.query(`SELECT classroom_id FROM homework WHERE homework_id = ?`, [homeworkId]);
+    if (hw.length === 0) return res.status(404).json({ success: false, message: 'Homework not found' });
+
+    if (!(await isInstructorOrTA(userId, hw[0].classroom_id))) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    await connection.beginTransaction();
+    for (let i = 0; i < question_ids.length; i++) {
+      const qId = question_ids[i];
+      await connection.query(
+        `UPDATE questions SET order_number = ? WHERE question_id = ? AND homework_id = ?`,
+        [i + 1, qId, homeworkId]
+      );
+    }
+    await connection.commit();
+
+    res.json({ success: true, message: 'Questions reordered successfully' });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error reordering questions:', error);
+    res.status(500).json({ success: false, message: error.message });
+  } finally {
+    connection.release();
+  }
+};
+
 module.exports = {
   createHomework,
   updateHomework,
@@ -495,5 +537,6 @@ module.exports = {
   updateQuestion,
   deleteQuestion,
   getQuestionAnswer,
-  deleteQuestionAnswer
+  deleteQuestionAnswer,
+  reorderQuestions
 };

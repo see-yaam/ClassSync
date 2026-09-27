@@ -48,16 +48,7 @@
       <form id="add-q-form">
         <div id="add-q-error" class="form-error-msg" style="display: none; margin-bottom: 1rem;"></div>
 
-        <div class="form-group">
-          <label for="q-type">Question Type *</label>
-          <select id="q-type" class="form-control">
-            <option value="text">📄 Code / SQL / Text Solution</option>
-            <option value="pdf">📕 PDF Attachment (.pdf)</option>
-            <option value="pptx">📊 PPTX Presentation (.pptx)</option>
-            <option value="docx">📘 DOCX Document (.docx)</option>
-            <option value="link">🌐 Web Link Reference</option>
-          </select>
-        </div>
+
 
         <div class="form-group">
           <label for="q-text">Question Prompt / Statement *</label>
@@ -73,15 +64,9 @@
           </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-          <div class="form-group">
-            <label for="q-points">Points *</label>
-            <input type="number" id="q-points" class="form-control" value="10" required>
-          </div>
-          <div class="form-group">
-            <label for="q-order">Question Order #</label>
-            <input type="number" id="q-order" class="form-control" value="1">
-          </div>
+        <div class="form-group">
+          <label for="q-points">Points *</label>
+          <input type="number" id="q-points" class="form-control" value="10" required>
         </div>
 
         <div style="padding-top: 1rem; border-top: 1px solid var(--border-color);">

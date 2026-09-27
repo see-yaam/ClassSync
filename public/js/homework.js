@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('hw-meta').innerHTML = `
         Classroom: <strong class="text-slate-800 dark:text-slate-200">${homeworkData.classroom_name}</strong> &nbsp;|&nbsp; 
         Points: <strong class="text-slate-800 dark:text-slate-200">${homeworkData.total_points}</strong> &nbsp;|&nbsp; 
-        Deadline: ${homeworkData.deadline ? new Date(homeworkData.deadline).toLocaleString() : 'No Deadline'}
+        Deadline: ${homeworkData.deadline ? formatDate(homeworkData.deadline) : 'No Deadline'}
         <span id="deadline-countdown-badge" class="ml-2"></span>
       `;
       const userRole = (homeworkData.user_role || '').toLowerCase();
@@ -123,10 +123,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         typeBadge = `<span class="badge badge-gray"><i class="fa-solid fa-file-code"></i> Code / Text Solution</span>`;
       }
 
+      let gradeColor = 'var(--status-green)';
+      let gradeRgb = '16, 185, 129';
+      if (q.status === 'Wrong') {
+        gradeColor = 'var(--status-red)';
+        gradeRgb = '239, 68, 68';
+      } else if (q.status === 'Needs Improvement') {
+        gradeColor = '#d97706';
+        gradeRgb = '217, 119, 6';
+      }
+
       return `
-        <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="card question-card" data-qid="${q.question_id}" style="margin-bottom: 1.5rem;" ${isInstructor ? `draggable="true" ondragstart="handleDragStart(event)" ondragover="handleDragOver(event)" ondragend="handleDragEnd(event)" ondrop="handleDrop(event)"` : ''}>
           <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color); margin-bottom: 1rem;">
-            <h3 class="card-title" style="margin: 0; font-size: 1.15rem; font-weight: 700; color: var(--primary-color);">
+            <h3 class="card-title" style="margin: 0; font-size: 1.15rem; font-weight: 700; color: var(--primary-color); ${isInstructor ? 'cursor: grab;' : ''}">
+              ${isInstructor ? '<i class="fa-solid fa-grip-vertical" style="color: var(--text-muted); margin-right: 0.5rem;"></i>' : ''}
               <i class="fa-solid fa-circle-question"></i> Question ${idx + 1} &nbsp;<span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">(${q.points} Points)</span>
             </h3>
             <div style="display: flex; align-items: center; gap: 0.5rem;">
@@ -154,31 +165,48 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
 
           <!-- Learner Submission Box -->
-          <div style="padding: 1.25rem; border-radius: 12px; background-color: var(--table-head-bg); border: 1px solid var(--border-color); margin-bottom: 1rem;">
-            <h4 style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem; color: var(--text-muted);">Your Solution Submission</h4>
+          ${(!isInstructor && userRole !== 'ta') ? `
+          <div style="padding: 1.25rem; border-radius: 12px; background-color: var(--table-head-bg); border: 1px solid ${q.submission_id ? (q.score !== null ? gradeColor : 'var(--status-green)') : 'var(--border-color)'}; margin-bottom: 1rem; ${q.submission_id ? `box-shadow: 0 0 10px rgba(${q.score !== null ? gradeRgb : '16, 185, 129'}, 0.2);` : ''}">
+            <h4 style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem; color: ${q.submission_id ? (q.score !== null ? gradeColor : 'var(--status-green)') : 'var(--text-muted)'};">
+              ${q.submission_id ? '<i class="fa-solid fa-check-circle"></i> Submitted Successfully' : 'Your Solution Submission'}
+            </h4>
             ${q.submission_id ? `
-              <div style="font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                <span>Submitted on ${new Date(q.submitted_at).toLocaleString()}</span> 
-                ${q.is_late ? `<span class="badge badge-yellow">LATE (-${q.penalty_applied}%)</span>` : '<span class="badge badge-green">ON TIME</span>'}
+              <div id="submitted-view-${q.question_id}">
+                <div style="font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                  <span>Submitted on ${formatDate(q.submitted_at)}</span> 
+                  ${q.is_late ? `<span class="badge badge-yellow">LATE (-${q.penalty_applied}%)</span>` : '<span class="badge badge-green">ON TIME</span>'}
+                </div>
+                <div class="code-box" id="student-code-${q.submission_id}" style="font-family: monospace;">${escapeHtml(q.code_content || q.file_url || 'No content')}</div>
+                ${q.file_url ? `
+                  <div style="margin-top: 0.5rem;">
+                    <a href="${q.file_url}" target="_blank" class="btn btn-outline btn-sm">
+                      <i class="fa-solid fa-file-arrow-down"></i> View Attached Submission File
+                    </a>
+                  </div>
+                ` : ''}
+                ${q.score !== null ? `
+                  <div style="padding: 0.75rem 1rem; border-radius: 8px; background-color: rgba(${gradeRgb}, 0.1); border: 1px solid rgba(${gradeRgb}, 0.2); font-size: 0.85rem; color: ${gradeColor}; margin-top: 0.5rem;">
+                    <strong>Grade:</strong> ${q.score} / ${q.points} Points &nbsp;|&nbsp; 
+                    <strong>Status:</strong> ${q.status || 'Accepted'} &nbsp;|&nbsp; 
+                    <strong>Feedback:</strong> ${q.feedback || 'None provided'}
+                    <div style="margin-top: 0.5rem;">
+                      <button type="button" class="btn btn-outline btn-sm" onclick="toggleStudentInlineReviews(${q.submission_id}, ${q.question_id})" style="border-color: ${gradeColor}; color: ${gradeColor};"><i class="fa-solid fa-comments"></i> View Inline Comments</button>
+                    </div>
+                    <div id="student-inline-reviews-${q.submission_id}" style="display: none; margin-top: 0.75rem; background: var(--bg-body); padding: 0.75rem; border-radius: 8px; border: 1px solid var(--border-color); color: var(--text-main);"></div>
+                  </div>
+                ` : '<p style="font-size: 0.8rem; color: var(--status-orange); font-weight: 600; margin-top: 0.5rem;">Pending instructor grading...</p>'}
+                ${q.score === null ? `
+                <div style="margin-top: 1rem;">
+                  <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('submitted-view-${q.question_id}').style.display='none'; document.getElementById('submission-form-${q.question_id}').style.display='block';">
+                    <i class="fa-solid fa-pen"></i> Update / Resubmit Solution
+                  </button>
+                </div>
+                ` : ''}
               </div>
-              <div class="code-box">${escapeHtml(q.code_content || q.file_url || 'No content')}</div>
-              ${q.file_url ? `
-                <div style="margin-top: 0.5rem;">
-                  <a href="${q.file_url}" target="_blank" class="btn btn-outline btn-sm">
-                    <i class="fa-solid fa-file-arrow-down"></i> View Attached Submission File
-                  </a>
-                </div>
-              ` : ''}
-              ${q.score !== null ? `
-                <div style="padding: 0.75rem 1rem; border-radius: 8px; background-color: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); font-size: 0.85rem; color: var(--status-green); margin-top: 0.5rem;">
-                  <strong>Grade:</strong> ${q.score} / ${q.points} Points &nbsp;|&nbsp; 
-                  <strong>Feedback:</strong> ${q.feedback || 'None provided'}
-                </div>
-              ` : '<p style="font-size: 0.8rem; color: var(--status-orange); font-weight: 600; margin-top: 0.5rem;">Pending instructor grading...</p>'}
             ` : '<p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem;">You have not submitted a solution for Question ' + (idx + 1) + ' yet.</p>'}
 
             <!-- Submission Form -->
-            <form onsubmit="handleQuestionSubmit(event, ${q.question_id})" style="margin-top: 0.75rem;">
+            <form id="submission-form-${q.question_id}" onsubmit="handleQuestionSubmit(event, ${q.question_id})" style="margin-top: 0.75rem; display: ${q.submission_id ? 'none' : 'block'};">
               <div class="form-group">
                 <label style="font-weight: 600; font-size: 0.85rem;">Solution Content (Paste Text/Code or Upload File)</label>
                 <textarea id="sub-input-${q.question_id}" class="form-control" style="font-family: var(--font-mono); font-size: 0.85rem; height: 95px;" placeholder="Type code / solution text or drag & drop a file below...">${q.code_content || ''}</textarea>
@@ -201,14 +229,19 @@ document.addEventListener('DOMContentLoaded', async () => {
               </div>
               <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.75rem;">
                 <small style="color: var(--text-muted); font-size: 0.75rem;">Submitting updates your solution for Question ${idx + 1}.</small>
-                <button type="submit" class="btn btn-primary btn-sm">
-                  <i class="fa-solid fa-paper-plane"></i> ${q.submission_id ? 'Update Solution' : 'Submit Solution'}
-                </button>
+                <div style="display: flex; gap: 0.5rem;">
+                  ${q.submission_id ? `<button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('submission-form-${q.question_id}').style.display='none'; document.getElementById('submitted-view-${q.question_id}').style.display='block';">Cancel</button>` : ''}
+                  <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="fa-solid fa-paper-plane"></i> ${q.submission_id ? 'Submit Update' : 'Submit Solution'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
+          ` : ''}
 
           <!-- Post-Submission Answer Key Section -->
+          ${(!isInstructor && userRole !== 'ta') ? `
           <div style="margin-bottom: 1rem;">
             <button class="btn btn-outline btn-sm" onclick="toggleAnswerKey(${q.question_id})">
               <i class="fa-solid fa-key"></i> View Instructor Answer Key
@@ -217,6 +250,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               <p style="font-size: 0.8rem; color: var(--text-muted);">Loading answer key...</p>
             </div>
           </div>
+          ` : ''}
 
         </div>
       `;
@@ -332,6 +366,57 @@ document.addEventListener('DOMContentLoaded', async () => {
       `;
     } catch (err) {
       box.innerHTML = `<p style="font-size: 0.8rem; color: var(--status-red); font-weight: 600;"><i class="fa-solid fa-lock"></i> ${err.message}</p>`;
+    }
+  };
+
+  window.toggleStudentInlineReviews = async (submissionId, questionId) => {
+    const box = document.getElementById(`student-inline-reviews-${submissionId}`);
+    const codeBox = document.getElementById(`student-code-${submissionId}`);
+    const rawCode = document.getElementById(`sub-input-${questionId}`)?.value || '';
+
+    if (box.style.display !== 'none' && box.style.display !== '') {
+      box.style.display = 'none';
+      // Reset code box to normal view
+      if (rawCode) codeBox.innerHTML = escapeHtml(rawCode);
+      return;
+    }
+    
+    box.style.display = 'block';
+    box.innerHTML = '<span style="font-size: 0.8rem; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Loading comments...</span>';
+
+    try {
+      const res = await apiFetch(`/submissions/${submissionId}/code-reviews`);
+      const reviews = res.data;
+      if (reviews.length === 0) {
+        box.innerHTML = '<span style="font-size: 0.85rem; color: var(--text-muted);">No inline comments from the instructor.</span>';
+        return;
+      }
+      
+      const lines = rawCode.split('\n');
+      const outputLines = [];
+      
+      lines.forEach((line, idx) => {
+        const lineNum = idx + 1;
+        outputLines.push(`<span style="color: var(--text-muted); padding-right: 1rem; border-right: 1px solid var(--border-color); margin-right: 1rem; display: inline-block; width: 30px; text-align: right;">${lineNum}</span>${escapeHtml(line) || '&nbsp;'}`);
+        
+        // Find reviews overlapping this line
+        const lineReviews = reviews.filter(r => lineNum >= r.line_start && lineNum <= r.line_end);
+        lineReviews.forEach(r => {
+           let color = 'var(--primary-color)';
+           let icon = '<i class="fa-solid fa-comment"></i>';
+           if (r.comment.includes('[ERROR]')) { color = 'var(--status-red)'; icon = '<i class="fa-solid fa-circle-xmark"></i>'; }
+           if (r.comment.includes('[WARNING]')) { color = '#d97706'; icon = '<i class="fa-solid fa-triangle-exclamation"></i>'; } // darker yellow/orange for readability
+           
+           const commentText = r.comment.replace(/\\[ERROR\\]|\\[WARNING\\]|\\[COMMENT\\]/g, '').trim();
+           outputLines.push(`<div style="margin-left: 56px; margin-top: 0.25rem; margin-bottom: 0.5rem; color: ${color}; font-size: 0.85rem; font-family: monospace; background: ${color}11; padding: 0.25rem 0.5rem; border-left: 3px solid ${color}; border-radius: 4px;">// ${icon} ${escapeHtml(commentText)} <span style="opacity:0.7;font-size:0.75rem;">- ${escapeHtml(r.reviewer_name)}</span></div>`);
+        });
+      });
+      
+      codeBox.innerHTML = `<div style="white-space: pre-wrap; margin: 0; font-family: monospace; font-size: 0.9rem;">${outputLines.join('\n')}</div>`;
+      
+      box.innerHTML = '<span style="font-size: 0.85rem; color: var(--status-green);"><i class="fa-solid fa-check"></i> Inline comments are displayed inside the code block above! Click again to hide.</span>';
+    } catch (err) {
+      box.innerHTML = `<span style="font-size: 0.85rem; color: var(--status-red);"><i class="fa-solid fa-circle-exclamation"></i> Error loading comments: ${err.message}</span>`;
     }
   };
 
@@ -597,10 +682,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     editingQuestionId = questionId;
     document.getElementById('add-q-modal-title').textContent = 'Edit Question';
     document.getElementById('submit-add-q-btn').innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Changes';
-    document.getElementById('q-type').value = question.question_type || 'text';
+    // document.getElementById('q-type').value = question.question_type || 'text';
     document.getElementById('q-text').value = question.question_text || '';
     document.getElementById('q-points').value = question.points || 10;
-    document.getElementById('q-order').value = question.order_number || 0;
+    // document.getElementById('q-order').value = question.order_number || 0;
     document.getElementById('q-file-picker').value = '';
     document.getElementById('q-ans-file-picker').value = '';
     document.getElementById('q-ans-text').value = '';
@@ -753,11 +838,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       await apiFetch(editingQuestionId ? `/questions/${editingQuestionId}` : `/homework/${homeworkId}/questions`, {
         method: editingQuestionId ? 'PUT' : 'POST',
         body: JSON.stringify({
-          question_type: document.getElementById('q-type').value,
+          question_type: 'text',
           question_text: qText,
           question_data: questionDataUrl,
           points: document.getElementById('q-points').value,
-          order_number: document.getElementById('q-order').value,
+          // order_number: removed for drag-drop
           answer_text: document.getElementById('q-ans-text').value,
           answer_file_url: answerFileUrl
         })
@@ -788,6 +873,66 @@ document.addEventListener('DOMContentLoaded', async () => {
     const lines = code.split('\n');
     return lines.map((line, idx) => `<div class="code-line"><span class="line-num">${idx + 1}</span><span>${escapeHtml(line) || '&nbsp;'}</span></div>`).join('');
   }
+
+  let draggedCard = null;
+
+  window.handleDragStart = function(e) {
+    draggedCard = e.currentTarget;
+    e.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => draggedCard.style.opacity = '0.5', 0);
+  };
+
+  window.handleDragOver = function(e) {
+    e.preventDefault();
+    const targetCard = e.currentTarget.closest('.question-card');
+    if (draggedCard && targetCard && draggedCard !== targetCard) {
+      const container = document.getElementById('questions-container');
+      const children = Array.from(container.querySelectorAll('.question-card'));
+      const draggedIndex = children.indexOf(draggedCard);
+      const targetIndex = children.indexOf(targetCard);
+      if (draggedIndex < targetIndex) {
+        targetCard.after(draggedCard);
+      } else {
+        targetCard.before(draggedCard);
+      }
+    }
+  };
+  
+  window.handleDragEnd = function(e) {
+    if (draggedCard) {
+      draggedCard.style.opacity = '1';
+    }
+  };
+
+  window.handleDrop = async function(e) {
+    e.preventDefault();
+    if (draggedCard) {
+      draggedCard.style.opacity = '1';
+    }
+    const container = document.getElementById('questions-container');
+    const children = Array.from(container.querySelectorAll('.question-card'));
+    const newOrder = children.map(child => child.dataset.qid);
+    
+    children.forEach((child, index) => {
+      const titleEl = child.querySelector('.card-title');
+      const textParts = titleEl.innerHTML.split('&nbsp;');
+      const pointsHtml = textParts.length > 1 ? '&nbsp;' + textParts.slice(1).join('&nbsp;') : '';
+      const handleHtml = '<i class="fa-solid fa-grip-vertical" style="color: var(--text-muted); margin-right: 0.5rem;"></i>';
+      titleEl.innerHTML = `${handleHtml} <i class="fa-solid fa-circle-question"></i> Question ${index + 1} ${pointsHtml}`;
+    });
+
+    try {
+      await apiFetch(`/homework/${homeworkId}/questions/reorder`, {
+        method: 'PUT',
+        body: JSON.stringify({ question_ids: newOrder })
+      });
+      showToast('Question order updated!');
+    } catch (err) {
+      console.error(err);
+      showAlert('Failed to save question order: ' + err.message, 'danger');
+      loadHomeworkDetails();
+    }
+  };
 
   loadHomeworkDetails();
 });

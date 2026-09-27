@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('session-title-header').textContent = sessionData.session_title;
       document.getElementById('session-meta').innerHTML = `
         Classroom: <strong class="text-slate-800 dark:text-slate-200">${sessionData.classroom_name}</strong> &nbsp;|&nbsp; 
-        Scheduled: ${new Date(sessionData.scheduled_time).toLocaleString()} &nbsp;|&nbsp; 
+        Scheduled: ${formatDate(sessionData.scheduled_time)} &nbsp;|&nbsp; 
         Expected Duration: ${sessionData.expected_duration} mins (75% Attendance Threshold)
       `;
       document.getElementById('back-to-classroom-btn').href = `/classroom.html?id=${sessionData.classroom_id}`;

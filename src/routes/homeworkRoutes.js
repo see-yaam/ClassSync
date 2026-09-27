@@ -11,7 +11,8 @@ const {
   updateQuestion,
   deleteQuestion,
   getQuestionAnswer,
-  deleteQuestionAnswer
+  deleteQuestionAnswer,
+  reorderQuestions
 } = require('../controllers/homeworkController');
 const { verifyToken } = require('../middleware/auth');
 const { requireClassroomRole } = require('../middleware/rbac');
@@ -23,6 +24,7 @@ router.get('/classrooms/:id/homework', verifyToken, requireClassroomRole(['instr
 router.put('/homework/:id/publish', verifyToken, requireClassroomRole(['instructor'], 'homework'), togglePublishHomework);
 router.get('/homework/:id', verifyToken, requireClassroomRole(['instructor', 'TA', 'learner'], 'homework'), getHomeworkById);
 router.post('/homework/:id/questions', verifyToken, requireClassroomRole(['instructor'], 'homework'), addQuestion);
+router.put('/homework/:id/questions/reorder', verifyToken, requireClassroomRole(['instructor'], 'homework'), reorderQuestions);
 router.put('/questions/:id', verifyToken, requireClassroomRole(['instructor'], 'question'), updateQuestion);
 router.delete('/questions/:id', verifyToken, requireClassroomRole(['instructor'], 'question'), deleteQuestion);
 router.get('/questions/:id/answer', verifyToken, requireClassroomRole(['instructor', 'TA', 'learner'], 'question'), getQuestionAnswer);

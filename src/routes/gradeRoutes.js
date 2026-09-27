@@ -4,7 +4,8 @@ const {
   gradeSubmission,
   addCodeReview,
   getCodeReviews,
-  getConsolidatedGradings
+  getConsolidatedGradings,
+  deleteCodeReview
 } = require('../controllers/gradeController');
 const { verifyToken } = require('../middleware/auth');
 const { requireClassroomRole } = require('../middleware/rbac');
@@ -13,6 +14,7 @@ router.get('/classrooms/:id/gradings', verifyToken, requireClassroomRole(['instr
 router.post('/submissions/:id/grade', verifyToken, requireClassroomRole(['instructor', 'TA'], 'submission'), gradeSubmission);
 router.post('/submissions/:id/code-reviews', verifyToken, requireClassroomRole(['instructor', 'TA'], 'submission'), addCodeReview);
 router.get('/submissions/:id/code-reviews', verifyToken, requireClassroomRole(['instructor', 'TA', 'learner'], 'submission'), getCodeReviews);
+router.delete('/code-reviews/:id', verifyToken, deleteCodeReview);
 
 module.exports = router;
 

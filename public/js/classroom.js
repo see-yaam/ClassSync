@@ -171,11 +171,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      listEl.innerHTML = homeworks.map(hw => `
-        <div class="card">
+      listEl.innerHTML = homeworks.map(hw => {
+        const isCompleted = !isInstructor && hw.question_count > 0 && hw.submitted_count === hw.question_count;
+        const cardStyle = isCompleted ? 'box-shadow: 0 0 10px rgba(16, 185, 129, 0.3); border: 1px solid var(--status-green);' : '';
+        
+        return `
+        <div class="card" style="${cardStyle}">
           <div class="card-info">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
-              <h4 class="card-title"><a href="/homework.html?id=${hw.homework_id}">${hw.title}</a></h4>
+              <h4 class="card-title">
+                <a href="/homework.html?id=${hw.homework_id}">${hw.title}</a>
+                ${isCompleted ? '<span class="badge badge-green" style="margin-left: 0.5rem; font-size: 0.65rem;"><i class="fa-solid fa-check-circle"></i> COMPLETED</span>' : ''}
+              </h4>
               <div class="hw-deadline-badge-wrap" data-deadline="${hw.deadline || ''}" data-published="${hw.is_published}">
                 ${renderHomeworkDeadlineBadge(hw.deadline, hw.is_published)}
               </div>
@@ -185,12 +192,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="card-details">
               <div class="detail-row">
                 <strong>Deadline:</strong>
-                <span>${hw.deadline ? new Date(hw.deadline).toLocaleString() : 'No Deadline'}</span>
+                <span>${hw.deadline ? formatDate(hw.deadline) : 'No Deadline'}</span>
               </div>
               <div class="detail-row">
                 <strong>Total Points / Qs:</strong>
                 <span>${hw.total_points} Points (${hw.question_count} Questions)</span>
               </div>
+              ${!isInstructor ? `
+              <div class="detail-row">
+                <strong>Progress:</strong>
+                <span style="color: ${isCompleted ? 'var(--status-green)' : 'var(--text-main)'}; font-weight: 600;">
+                  ${hw.submitted_count || 0} / ${hw.question_count} Submitted
+                </span>
+              </div>
+              ` : ''}
             </div>
           </div>
 
@@ -211,7 +226,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ` : ''}
           </div>
         </div>
-      `).join('');
+      `}).join('');
 
       startHomeworkTabCountdown();
     } catch (err) {
@@ -219,7 +234,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
-  // TAB 2: Submission Matrix
+  // TAB 2: Submission Matrix (All Submissions)
   const loadMatrixTab = async () => {
     const selectEl = document.getElementById('matrix-hw-select');
     const containerEl = document.getElementById('matrix-container');
@@ -229,84 +244,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       selectEl.innerHTML = '<option value="">-- Select Homework Set --</option>' +
         hwRes.data.map(h => `<option value="${h.homework_id}">${h.title}</option>`).join('');
 
-      selectEl.onchange = async () => {
-        const hwId = selectEl.value;
-        const plagiarismSelect = document.getElementById('plagiarism-hw-select');
-        if (plagiarismSelect && hwId) plagiarismSelect.value = hwId;
-        if (!hwId) {
-          containerEl.innerHTML = renderEmptyState({
-            icon: 'table-cells',
-            title: 'Select a Homework Set',
-            message: 'Choose a homework set from the dropdown above to render the submission matrix.'
-          });
-          document.getElementById('submission-roster-container').innerHTML = renderEmptyState({
-            icon: 'users-viewfinder',
-            title: 'Select a Homework Set',
-            message: 'Choose a homework set from the dropdown above to view learner submissions.'
-          });
-          return;
-        }
-
-        containerEl.innerHTML = renderSkeletonRows(3);
-        const res = await apiFetch(`/homework/${hwId}/matrix`);
-        const { questions, matrix } = res.data;
-
-        if (matrix.length === 0 || questions.length === 0) {
-          containerEl.innerHTML = renderEmptyState({
-            icon: 'table-cells',
-            title: 'No Submissions Found',
-            message: 'There are no questions or submissions logged for this homework set yet.'
-          });
-          return;
-        }
-
-        containerEl.innerHTML = `
-          <table>
-            <thead>
-              <tr>
-                <th>Learner Name</th>
-                ${questions.map(q => `<th style="text-align: center;">Q${q.order_number || q.question_id} (${q.points}pts)</th>`).join('')}
-                <th style="text-align: center;">Total Score</th>
-                <th style="text-align: center;">Late Submissions</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${matrix.map(row => `
-                <tr>
-                  <td>
-                    <div style="font-weight: 700; display: flex; align-items: center; gap: 0.4rem;">
-                      ${escapeHtml(row.full_name)}
-                      ${row.streak >= 3 ? `
-                        <span class="badge badge-yellow" style="font-size: 0.7rem; border-radius: 999px;">
-                          <i class="fa-solid fa-fire text-amber-500"></i> ${row.streak} STREAK
-                        </span>
-                      ` : ''}
-                    </div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(row.email)}</div>
-                  </td>
-                  ${questions.map(q => {
-                    const qData = row.questions[q.question_id];
-                    const badgeClass = qData.status === 'green' ? 'badge-green' : qData.status === 'orange' ? 'badge-yellow' : 'badge-gray';
-                    return `
-                      <td style="text-align: center;">
-                        <span class="badge ${badgeClass}">
-                          ${qData.label} ${qData.score !== null ? `(${qData.score}pts)` : ''}
-                        </span>
-                      </td>
-                    `;
-                  }).join('')}
-                  <td style="text-align: center; font-weight: 700;">${row.total_earned} / ${row.total_possible}</td>
-                  <td style="text-align: center; color: var(--text-muted);">${row.late_count}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        `;
-        if (document.querySelector('.matrix-view-tab.active')?.dataset.matrixView === 'roster') {
-          loadSubmissionRoster(hwId);
-        }
-      };
-
+      // Setup tab switchers first so they work even if matrix fails to load
       const matrixViewTabs = document.querySelectorAll('.matrix-view-tab');
       matrixViewTabs.forEach(tab => {
         tab.onclick = () => {
@@ -326,79 +264,177 @@ document.addEventListener('DOMContentLoaded', async () => {
           containerEl.style.display = activeView === 'matrix' ? 'block' : 'none';
           document.getElementById('submission-roster-container').style.display = showRoster ? 'block' : 'none';
           document.getElementById('plagiarism-container').style.display = showPlagiarism ? 'block' : 'none';
-          if (showRoster && selectEl.value) loadSubmissionRoster(selectEl.value);
-          if (showPlagiarism) loadPlagiarismTab();
+          
+          if (showRoster) {
+             selectEl.style.display = 'none'; // Hide select for roster
+             loadSubmissionRoster();
+          } else if (showPlagiarism) {
+             selectEl.style.display = 'none'; // Plagiarism has its own select
+             loadPlagiarismTab();
+          } else {
+             selectEl.style.display = 'none'; // Hide select for Matrix
+          }
         };
       });
 
-      containerEl.innerHTML = renderEmptyState({
-        icon: 'table-cells',
-        title: 'Select a Homework Set',
-        message: 'Choose a homework set from the dropdown menu above to view the submission matrix.'
-      });
+      // Auto-load full matrix initially
+      containerEl.innerHTML = renderSkeletonRows(3);
+      const res = await apiFetch(`/classrooms/${classroomId}/matrix`);
+      const { learners, matrix } = res.data;
+
+      if (matrix.length === 0) {
+        containerEl.innerHTML = renderEmptyState({
+          icon: 'table-cells',
+          title: 'No Submissions Found',
+          message: 'There are no questions or submissions logged for this classroom yet.'
+        });
+      } else {
+        containerEl.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>Task</th>
+                ${learners.map(l => `<th style="text-align: center;" title="${escapeHtml(l.email)}">${escapeHtml(l.full_name)}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${matrix.map(hw => `
+                <tr style="background: var(--card-bg); font-weight: 700; border-top: 2px solid var(--border-color);">
+                  <td colspan="${learners.length + 1}">${escapeHtml(hw.title)}</td>
+                </tr>
+                ${hw.questions.map(q => `
+                  <tr>
+                    <td style="padding-left: 2rem;">#${q.order_number || q.question_id} ${escapeHtml(q.question_text.substring(0, 50))}${q.question_text.length > 50 ? '...' : ''}</td>
+                    ${learners.map(l => {
+                      const qData = q.learnerStatuses[l.user_id];
+                      let icon = '<i class="fa-solid fa-minus" style="color: var(--text-muted); opacity: 0.3;"></i>';
+                      if (qData.status === 'green') {
+                        icon = '<i class="fa-solid fa-check" style="color: var(--status-green);"></i>';
+                      } else if (qData.status === 'orange') {
+                        icon = '<i class="fa-solid fa-triangle-exclamation" style="color: var(--status-orange);"></i>';
+                      }
+                      return `
+                        <td style="text-align: center; cursor: pointer;" title="${qData.label}${qData.score !== null ? ` (${qData.score}pts)` : ''}" ${qData.submission_id ? `onclick="openClassroomSubmissionView(${qData.submission_id})"` : ''}>
+                          ${icon}
+                        </td>
+                      `;
+                    }).join('')}
+                  </tr>
+                `).join('')}
+              `).join('')}
+            </tbody>
+          </table>
+          <div style="margin-top: 1rem; display: flex; gap: 1rem; font-size: 0.8rem; color: var(--text-muted);">
+            <div><i class="fa-solid fa-check" style="color: var(--status-green);"></i> On time</div>
+            <div><i class="fa-solid fa-triangle-exclamation" style="color: var(--status-orange);"></i> Late</div>
+            <div><i class="fa-solid fa-minus" style="color: var(--text-muted); opacity: 0.3;"></i> Not submitted</div>
+          </div>
+        `;
+      }
+
+      selectEl.onchange = async () => {
+        const hwId = selectEl.value;
+        const plagiarismSelect = document.getElementById('plagiarism-hw-select');
+        if (plagiarismSelect && hwId) plagiarismSelect.value = hwId;
+        
+        if (document.querySelector('.matrix-view-tab.active')?.dataset.matrixView === 'roster') {
+          // Homework select is hidden for roster now, handled by tree view
+        }
+      };
+
     } catch (err) {
       containerEl.innerHTML = `<div class="card"><p style="color: var(--status-red);">Error: ${err.message}</p></div>`;
     }
   };
 
-  const loadSubmissionRoster = async (homeworkId) => {
+  const loadSubmissionRoster = async () => {
     const rosterEl = document.getElementById('submission-roster-container');
     rosterEl.innerHTML = renderSkeletonRows(3);
 
     try {
-      const homeworkRes = await apiFetch(`/homework/${homeworkId}`);
-      const questions = homeworkRes.data.questions || [];
-      const submissionGroups = await Promise.all(questions.map(async question => {
-        const response = await apiFetch(`/questions/${question.question_id}/submissions`);
-        return response.data.map(submission => ({ ...submission, question_text: question.question_text }));
-      }));
-      const submissions = submissionGroups.flat();
+      const res = await apiFetch(`/classrooms/${classroomId}/gradings?filter=all&sort=date`);
+      const submissions = res.data || [];
 
       if (submissions.length === 0) {
         rosterEl.innerHTML = renderEmptyState({
           icon: 'inbox',
           title: 'No Submissions Yet',
-          message: 'No learner submissions have been recorded for this homework set.'
+          message: 'No learner submissions have been recorded in this classroom.'
         });
         return;
       }
 
-      rosterEl.innerHTML = `
-        <table>
-          <thead>
-            <tr>
-              <th>Student</th>
-              <th>Assignment / Question</th>
-              <th>Submitted</th>
-              <th>Score</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${submissions.map(submission => `
-              <tr>
-                <td>
-                  <div style="font-weight: 700;">${escapeHtml(submission.learner_name)}</div>
-                  <div style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(submission.learner_email)}</div>
-                </td>
-                <td>${escapeHtml(submission.question_text || 'Assignment question')}</td>
-                <td style="color: var(--text-muted);">${new Date(submission.submitted_at).toLocaleString()}</td>
-                <td style="font-weight: 700;">${submission.score !== null ? `${submission.score} pts` : '<span class="badge badge-gray">Not Graded</span>'}</td>
-                <td>
-                  <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                    <button class="btn btn-outline btn-sm" onclick="openClassroomSubmissionView(${submission.submission_id})" title="View submitted answer">
-                      <i class="fa-solid fa-eye"></i> View
-                    </button>
-                    <button class="btn btn-primary btn-sm" onclick="openClassroomGradeModal(${submission.submission_id})" title="Grade submission">
-                      <i class="fa-solid fa-pen-ruler"></i> Grade
-                    </button>
+      // Group submissions by Homework -> Question
+      const hwMap = {};
+      submissions.forEach(sub => {
+        if (!hwMap[sub.homework_id]) {
+          hwMap[sub.homework_id] = { title: sub.homework_title, questions: {} };
+        }
+        if (!hwMap[sub.homework_id].questions[sub.question_id]) {
+          hwMap[sub.homework_id].questions[sub.question_id] = { title: sub.question_title, submissions: [] };
+        }
+        hwMap[sub.homework_id].questions[sub.question_id].submissions.push(sub);
+      });
+
+      let treeHtml = '<div style="display: flex; flex-direction: column; gap: 1rem;">';
+      
+      Object.entries(hwMap).forEach(([hwId, hwData]) => {
+        treeHtml += `
+          <details class="tree-hw" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;">
+            <summary style="padding: 1rem 1.25rem; font-weight: 700; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; gap: 0.75rem; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--border-color); list-style: none;">
+              <i class="fa-solid fa-folder-open" style="color: var(--primary-color);"></i> ${escapeHtml(hwData.title)}
+            </summary>
+            <div style="padding: 1rem;">
+        `;
+        
+        Object.entries(hwData.questions).forEach(([qId, qData]) => {
+          treeHtml += `
+            <details class="tree-q" style="margin-left: 1rem; margin-bottom: 0.75rem;">
+              <summary style="padding: 0.75rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; background: var(--bg-body); border-radius: 6px; border: 1px solid var(--border-color); list-style: none;">
+                <i class="fa-regular fa-circle-question" style="color: var(--status-orange);"></i> ${escapeHtml(qData.title)}
+                <span class="badge badge-gray" style="margin-left: auto;">${qData.submissions.length} submission(s)</span>
+              </summary>
+              <div style="padding-left: 1.5rem; margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
+          `;
+          
+          qData.submissions.forEach(sub => {
+            const isGraded = sub.is_graded;
+            let statusBadge = `<span style="background: var(--bg-body); color: var(--text-muted); border-radius: 9999px; padding: 0.15rem 0.6rem; font-size: 0.75rem; border: 1px solid var(--border-color);">Pending</span>`;
+            if (isGraded) {
+               const st = sub.status || 'Accepted';
+               if (st === 'Accepted') statusBadge = `<span style="background: rgba(34, 197, 94, 0.1); color: var(--status-green, #22c55e); border-radius: 9999px; padding: 0.15rem 0.6rem; font-size: 0.75rem; font-weight: bold;">${st} ${sub.score}/${sub.max_score}</span>`;
+               else if (st === 'Wrong') statusBadge = `<span style="background: rgba(239, 68, 68, 0.1); color: var(--status-red, #ef4444); border-radius: 9999px; padding: 0.15rem 0.6rem; font-size: 0.75rem; font-weight: bold;">${st} ${sub.score}/${sub.max_score}</span>`;
+               else statusBadge = `<span style="background: rgba(245, 158, 11, 0.1); color: var(--status-orange, #f59e0b); border-radius: 9999px; padding: 0.15rem 0.6rem; font-size: 0.75rem; font-weight: bold;">${st} ${sub.score}/${sub.max_score}</span>`;
+            }
+               
+            treeHtml += `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-card); cursor: pointer; transition: border-color 0.2s ease;" onmouseover="this.style.borderColor='var(--primary-color)'" onmouseout="this.style.borderColor='var(--border-color)'" onclick="window.openClassroomGradeModal(${sub.submission_id})">
+                  <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <span style="color: var(--text-muted); font-family: monospace;">${sub.learner_id}</span>
+                    <span style="font-weight: bold; color: var(--text-color);">${escapeHtml(sub.learner_name).toUpperCase()}</span>
                   </div>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      `;
+                  <div>
+                    ${statusBadge}
+                  </div>
+                </div>
+            `;
+          });
+          
+          treeHtml += `
+              </div>
+            </details>
+          `;
+        });
+        
+        treeHtml += `
+            </div>
+          </details>
+        `;
+      });
+      
+      treeHtml += '</div>';
+      rosterEl.innerHTML = treeHtml;
+
     } catch (err) {
       rosterEl.innerHTML = `<div class="card"><p style="color: var(--status-red);">Error: ${escapeHtml(err.message)}</p></div>`;
     }
@@ -442,6 +478,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('classroom-grade-error').style.display = 'none';
     document.getElementById('classroom-grade-score').value = '';
     document.getElementById('classroom-grade-feedback').value = '';
+    document.getElementById('classroom-grade-status').value = 'Accepted';
+    document.getElementById('classroom-grade-max').textContent = '10';
+    document.getElementById('inline-review-form-container').style.display = 'none';
     learnerEl.textContent = 'Loading submission...';
     contentEl.textContent = 'Loading answer...';
     classroomGradeModal.classList.add('active');
@@ -451,21 +490,99 @@ document.addEventListener('DOMContentLoaded', async () => {
       const submission = response.data || {};
       learnerEl.textContent = `Learner: ${submission.learner_name || 'Learner'}`;
       contentEl.innerHTML = submission.code_content
-        ? `<pre style="white-space: pre-wrap; margin: 0;">${escapeHtml(submission.code_content)}</pre>`
+        ? `<pre style="white-space: pre-wrap; margin: 0; font-family: monospace; font-size: 0.9rem;">${escapeHtml(submission.code_content).split('\n').map((line, idx) => `<span style="color: var(--text-muted); padding-right: 1rem; border-right: 1px solid var(--border-color); margin-right: 1rem; display: inline-block; width: 30px; text-align: right;">${idx + 1}</span>${line}`).join('\n')}</pre>`
         : submission.file_url
           ? `<a href="${escapeHtml(submission.file_url)}" target="_blank" class="btn btn-outline btn-sm"><i class="fa-solid fa-file-arrow-down"></i> Open submitted file</a>`
           : 'No content provided';
+          
+      if (submission.max_score) document.getElementById('classroom-grade-max').textContent = submission.max_score;
+      if (submission.status) document.getElementById('classroom-grade-status').value = submission.status;
+      
       document.getElementById('classroom-grade-score').value = submission.score ?? '';
       document.getElementById('classroom-grade-feedback').value = submission.feedback || '';
+      
+      // Show add review button only for text/code submissions
+      document.getElementById('btn-add-inline-review').style.display = submission.code_content ? 'block' : 'none';
+      await loadClassroomInlineReviews(submissionId);
     } catch (err) {
       learnerEl.textContent = err.message;
     }
+  };
+  const loadClassroomInlineReviews = async (subId) => {
+    const listEl = document.getElementById('classroom-grade-existing-reviews');
+    if (!listEl) return;
+    listEl.innerHTML = '<div style="font-size: 0.8rem; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Loading comments...</div>';
+    try {
+      const res = await apiFetch(`/submissions/${subId}/code-reviews`);
+      const reviews = res.data;
+      if (!reviews || reviews.length === 0) {
+        listEl.innerHTML = '';
+        return;
+      }
+      listEl.innerHTML = reviews.map(r => `
+        <div style="padding: 0.5rem; border-radius: 6px; background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.2); margin-bottom: 0.5rem; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: flex-start;">
+          <div>
+            <strong style="color: var(--primary-color);">Lines ${r.line_start}-${r.line_end} (${r.reviewer_name}):</strong> ${r.comment}
+          </div>
+          ${r.reviewer_id == getActiveUserId() ? `<button type="button" class="btn btn-outline btn-sm" style="border-color: var(--status-red); color: var(--status-red); padding: 0.2rem 0.4rem;" onclick="deleteInlineReview(${r.review_id}, ${subId})"><i class="fa-solid fa-trash"></i></button>` : ''}
+        </div>
+      `).join('');
+    } catch (err) {
+      listEl.innerHTML = `<div style="font-size: 0.8rem; color: var(--status-red);"><i class="fa-solid fa-circle-exclamation"></i> Error loading comments: ${err.message}</div>`;
+    }
+  };
+
+  window.deleteInlineReview = async (reviewId, subId) => {
+    try {
+      await apiFetch(`/code-reviews/${reviewId}`, { method: 'DELETE' });
+      showToast('Comment deleted', 'success');
+      await loadClassroomInlineReviews(subId);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  document.getElementById('btn-add-inline-review').onclick = () => {
+     document.getElementById('inline-review-form-container').style.display = 'block';
+  };
+  document.getElementById('cancel-inline-review-btn').onclick = () => {
+     document.getElementById('inline-review-form-container').style.display = 'none';
+  };
+  document.getElementById('save-inline-review-btn').onclick = async () => {
+     const from = document.getElementById('review-line-from').value;
+     const to = document.getElementById('review-line-to').value;
+     const type = document.querySelector('input[name="review-type"]:checked').value;
+     const comment = document.getElementById('review-comment-text').value;
+     if (!from || !to || !comment) return showToast('Please fill all review fields', 'error');
+     
+     try {
+       await apiFetch(`/submissions/${activeClassroomSubmissionId}/code-reviews`, {
+         method: 'POST',
+         body: JSON.stringify({
+           line_start: from,
+           line_end: to,
+           comment: `[${type.toUpperCase()}] ${comment}`
+         })
+       });
+       showToast(`Inline ${type} saved for lines ${from}-${to}!`, 'success');
+       
+       document.getElementById('review-line-from').value = '';
+       document.getElementById('review-line-to').value = '';
+       document.getElementById('review-comment-text').value = '';
+       // We DO NOT hide the form here, so the instructor can add another comment immediately
+       
+       await loadClassroomInlineReviews(activeClassroomSubmissionId);
+     } catch (err) {
+       showToast(err.message, 'error');
+     }
   };
 
   document.getElementById('classroom-grade-form').onsubmit = async event => {
     event.preventDefault();
     const errorEl = document.getElementById('classroom-grade-error');
     const score = document.getElementById('classroom-grade-score').value;
+    const status = document.getElementById('classroom-grade-status').value;
+    
     if (!score || !activeClassroomSubmissionId) {
       errorEl.textContent = 'Grade score is required.';
       errorEl.style.display = 'block';
@@ -478,12 +595,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         body: JSON.stringify({
           score,
           feedback: document.getElementById('classroom-grade-feedback').value,
+          status: status,
           is_draft: false
         })
       });
       classroomGradeModal.classList.remove('active');
       showToast('Grade saved successfully!', 'success');
-      if (document.getElementById('matrix-hw-select').value) loadSubmissionRoster(document.getElementById('matrix-hw-select').value);
+      loadSubmissionRoster(); // Reload roster tree view
     } catch (err) {
       errorEl.textContent = err.message;
       errorEl.style.display = 'block';
@@ -588,7 +706,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td><strong>${m.full_name}</strong></td>
                 <td style="color: var(--text-muted);">${m.email}</td>
                 <td>${renderRoleBadge(m.role)}</td>
-                <td style="color: var(--text-muted);">${new Date(m.joined_at).toLocaleDateString()}</td>
+                <td style="color: var(--text-muted);">${formatDateOnly(m.joined_at)}</td>
                 ${isInstructor ? `
                   <td>
                     ${m.role !== 'instructor' ? `
@@ -848,7 +966,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               <div class="card-details">
                 <div class="detail-row">
                   <strong>Scheduled Time:</strong>
-                  <span>${new Date(s.scheduled_time).toLocaleString()}</span>
+                  <span>${formatDate(s.scheduled_time)}</span>
                 </div>
                 <div class="detail-row">
                   <strong>Expected Duration:</strong>
@@ -1458,7 +1576,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                   <td><span class="badge badge-blue">${r.payment_method}</span></td>
                   <td><code>${r.payer_phone_number || 'N/A'}</code></td>
                   <td><code style="font-weight: 700; color: var(--primary-color);">${r.transaction_id}</code></td>
-                  <td style="color: var(--text-muted);">${new Date(r.requested_at).toLocaleString()}</td>
+                  <td style="color: var(--text-muted);">${formatDate(r.requested_at)}</td>
                   <td>${statusBadge}</td>
                   <td>
                     ${r.status === 'pending' ? `
@@ -1503,6 +1621,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
+  let currentGradingsFilter = 'all';
+
+  const setupGradingsFilters = () => {
+    const btns = document.querySelectorAll('.grading-filter-btn');
+    if (btns.length === 0) return;
+    
+    // Initial color setup based on active class
+    btns.forEach(btn => {
+      if (btn.classList.contains('active')) {
+         btn.style.background = 'var(--primary-color)';
+         btn.style.color = 'white';
+      } else {
+         btn.style.background = 'transparent';
+         btn.style.color = 'var(--text-muted)';
+      }
+      
+      btn.onclick = () => {
+        btns.forEach(b => {
+           b.classList.remove('active');
+           b.style.background = 'transparent';
+           b.style.color = 'var(--text-muted)';
+        });
+        btn.classList.add('active');
+        btn.style.background = 'var(--primary-color)';
+        btn.style.color = 'white';
+        currentGradingsFilter = btn.dataset.filter;
+        loadGradingsTab();
+      };
+    });
+  };
+
   // TAB: Consolidated Gradings (Staff Only)
   const loadGradingsTab = async () => {
     const container = document.getElementById('gradings-table-container');
@@ -1510,12 +1659,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     container.innerHTML = renderSkeletonRows(3);
 
-    const filterVal = document.getElementById('gradings-filter-select')?.value || 'all';
-    const sortVal = document.getElementById('gradings-sort-select')?.value || 'date';
+    const filterVal = currentGradingsFilter;
+    const sortVal = 'date'; // Removed sort select from UI based on screenshot
 
     try {
+      // Setup homework select if empty
+      const hwSelect = document.getElementById('gradings-hw-select');
+      if (hwSelect && hwSelect.options.length <= 1) {
+        const hwRes = await apiFetch(`/classrooms/${classroomId}/homework`);
+        hwSelect.innerHTML = '<option value="all">All Homework</option>' +
+          hwRes.data.map(h => `<option value="${h.homework_id}">${h.title}</option>`).join('');
+        hwSelect.onchange = () => loadGradingsTab();
+      }
+
       const res = await apiFetch(`/classrooms/${classroomId}/gradings?filter=${filterVal}&sort=${sortVal}`);
-      const submissions = res.data || [];
+      let submissions = res.data || [];
+
+      // Filter by homework if selected
+      if (hwSelect && hwSelect.value !== 'all') {
+         submissions = submissions.filter(s => String(s.homework_id) === String(hwSelect.value));
+      }
 
       if (submissions.length === 0) {
         container.innerHTML = renderEmptyState({
@@ -1527,49 +1690,31 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       container.innerHTML = `
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Learner</th>
-              <th>Homework</th>
-              <th>Question</th>
-              <th>Submitted At</th>
-              <th>Format</th>
-              <th>Status / Score</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
             ${submissions.map(s => {
-        const subDate = new Date(s.submitted_at).toLocaleString();
         const isGraded = s.is_graded;
-        const scoreBadge = isGraded
-          ? `<span class="badge badge-green">${s.score} / ${s.max_score} pts</span>`
-          : `<span class="badge badge-yellow">Ungraded</span>`;
-        const typeBadge = `<span class="badge badge-blue" style="text-transform: uppercase;">${s.submission_type || 'text'}</span>`;
-        const lateBadge = s.is_late ? `<span class="badge badge-red" style="font-size:0.7rem; margin-left:0.3rem;">LATE</span>` : '';
+        let scoreBadge = `<span style="background: var(--bg-body); color: var(--text-muted); border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.8rem; border: 1px solid var(--border-color);"><i class="fa-regular fa-clock"></i> Pending</span>`;
+        if (isGraded) {
+           const st = s.status || 'Accepted';
+           if (st === 'Accepted') scoreBadge = `<span style="background: rgba(34, 197, 94, 0.1); color: var(--status-green, #22c55e); border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.8rem; font-weight: bold;">${st} ${s.score}/${s.max_score}</span>`;
+           else if (st === 'Wrong') scoreBadge = `<span style="background: rgba(239, 68, 68, 0.1); color: var(--status-red, #ef4444); border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.8rem; font-weight: bold;">${st} ${s.score}/${s.max_score}</span>`;
+           else scoreBadge = `<span style="background: rgba(245, 158, 11, 0.1); color: var(--status-orange, #f59e0b); border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.8rem; font-weight: bold;">${st} ${s.score}/${s.max_score}</span>`;
+        }
 
         return `
-                <tr>
-                  <td>
-                    <strong>${escapeHtml(s.learner_name)}</strong>
-                    <div style="font-size:0.75rem; color:var(--text-muted);">${escapeHtml(s.learner_email)}</div>
-                  </td>
-                  <td><strong>${escapeHtml(s.homework_title)}</strong></td>
-                  <td><div style="max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(s.question_title)}</div></td>
-                  <td>${subDate} ${lateBadge}</td>
-                  <td>${typeBadge}</td>
-                  <td>${scoreBadge}</td>
-                  <td>
-                    <a href="/homework.html?id=${s.homework_id}" class="btn btn-outline btn-sm">
-                      <i class="fa-solid fa-pen-to-square"></i> Grade & Review
-                    </a>
-                  </td>
-                </tr>
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-card); cursor: pointer; transition: border-color 0.2s ease, box-shadow 0.2s ease;" onmouseover="this.style.borderColor='var(--primary-color)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.05)'" onmouseout="this.style.borderColor='var(--border-color)'; this.style.boxShadow='none'" onclick="window.openClassroomGradeModal(${s.submission_id})">
+                  <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <span style="color: var(--text-muted); font-family: monospace;">${s.learner_id}</span>
+                    <span style="font-weight: bold; color: var(--text-color);">${escapeHtml(s.learner_name).toUpperCase()}</span>
+                    <span style="color: var(--text-muted); font-size: 0.9em;">${escapeHtml(s.question_title)}</span>
+                  </div>
+                  <div>
+                    ${scoreBadge}
+                  </div>
+                </div>
               `;
       }).join('')}
-          </tbody>
-        </table>
+        </div>
       `;
     } catch (err) {
       console.error('Error loading gradings tab:', err);
@@ -1577,10 +1722,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
-  const gradingsFilterSelect = document.getElementById('gradings-filter-select');
-  const gradingsSortSelect = document.getElementById('gradings-sort-select');
-  if (gradingsFilterSelect) gradingsFilterSelect.onchange = () => loadGradingsTab();
-  if (gradingsSortSelect) gradingsSortSelect.onchange = () => loadGradingsTab();
+  setTimeout(() => setupGradingsFilters(), 100);
 
   // TAB 10: Course Settings (Instructor & Learner View)
   function loadSettingsTab() {

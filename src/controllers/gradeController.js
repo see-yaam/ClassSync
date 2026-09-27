@@ -5,7 +5,7 @@ const { createNotification } = require('../utils/notificationHelper');
 const gradeSubmission = async (req, res) => {
   try {
     const submissionId = req.params.id;
-    const { score, feedback, is_draft } = req.body;
+    const { score, feedback, is_draft, status } = req.body;
     const instructorId = req.user.user_id;
 
     // Get submission & learner
@@ -30,15 +30,15 @@ const gradeSubmission = async (req, res) => {
       gradeId = existing[0].grade_id;
       await db.query(
         `UPDATE grades
-         SET instructor_id = ?, score = ?, feedback = ?, is_draft = ?, updated_at = NOW()
+         SET instructor_id = ?, score = ?, feedback = ?, is_draft = ?, status = ?, updated_at = NOW()
          WHERE submission_id = ?`,
-        [instructorId, score, feedback || '', is_draft ? true : false, submissionId]
+        [instructorId, score, feedback || '', is_draft ? true : false, status || 'Accepted', submissionId]
       );
     } else {
       const [result] = await db.query(
-        `INSERT INTO grades (submission_id, instructor_id, score, feedback, is_draft)
-         VALUES (?, ?, ?, ?, ?)`,
-        [submissionId, instructorId, score, feedback || '', is_draft ? true : false]
+        `INSERT INTO grades (submission_id, instructor_id, score, feedback, is_draft, status)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [submissionId, instructorId, score, feedback || '', is_draft ? true : false, status || 'Accepted']
       );
       gradeId = result.insertId;
     }
@@ -156,6 +156,7 @@ const getConsolidatedGradings = async (req, res) => {
         s.submission_type,
         g.score,
         g.is_draft,
+        g.status,
         CASE WHEN g.grade_id IS NOT NULL THEN true ELSE false END AS is_graded
       FROM submissions s
       JOIN questions q ON s.question_id = q.question_id
@@ -193,10 +194,33 @@ const getConsolidatedGradings = async (req, res) => {
   }
 };
 
+// DELETE /api/code-reviews/:id - Delete a code review
+const deleteCodeReview = async (req, res) => {
+  try {
+    const reviewId = req.params.id;
+    const userId = req.user.user_id;
+
+    const [rows] = await db.query('SELECT reviewer_id FROM code_reviews WHERE review_id = ?', [reviewId]);
+    if (rows.length === 0) return res.status(404).json({ success: false, message: 'Review not found' });
+    
+    // Allow if they are the reviewer (or if they are an instructor, but we'll keep it simple for now)
+    if (rows[0].reviewer_id !== userId) {
+      return res.status(403).json({ success: false, message: 'Not authorized to delete this comment' });
+    }
+
+    await db.query('DELETE FROM code_reviews WHERE review_id = ?', [reviewId]);
+    res.json({ success: true, message: 'Comment deleted' });
+  } catch (error) {
+    console.error('Error deleting code review:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   gradeSubmission,
   addCodeReview,
   getCodeReviews,
-  getConsolidatedGradings
+  getConsolidatedGradings,
+  deleteCodeReview
 };
 

@@ -19,6 +19,7 @@ const {
 } = require('../controllers/classroomController');
 const { verifyToken, optionalToken } = require('../middleware/auth');
 const { requireClassroomRole } = require('../middleware/rbac');
+const { getClassroomSubmissionMatrix } = require('../controllers/submissionController');
 
 // Public course search & discovery (Optional authentication)
 router.get('/courses/search', optionalToken, searchPublicCourses);
@@ -32,8 +33,10 @@ router.get('/classrooms/:id', verifyToken, requireClassroomRole(['instructor', '
 router.delete('/classrooms/:id/leave', verifyToken, requireClassroomRole(['learner'], 'classroom'), leaveClassroom);
 router.delete('/classrooms/:id', verifyToken, requireClassroomRole(['instructor'], 'classroom'), deleteClassroom);
 
-// Student Info & Attendance Roster (Instructor & TA Only)
+// Student Info & Attendance Roster & Submissions
 router.get('/classrooms/:id/student-info', verifyToken, requireClassroomRole(['instructor', 'TA'], 'classroom'), getStudentInfo);
+router.get('/classrooms/:id/matrix', verifyToken, requireClassroomRole(['instructor', 'TA'], 'classroom'), getClassroomSubmissionMatrix);
+
 
 // Settings update (Instructor Only)
 router.put('/classrooms/:id/settings', verifyToken, requireClassroomRole(['instructor'], 'classroom'), updateClassroomSettings);

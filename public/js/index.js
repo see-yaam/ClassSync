@@ -1,4 +1,4 @@
-﻿document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => {
   const token = getAuthToken();
   const isAuth = !!token;
 
@@ -490,12 +490,6 @@
           <i class="fa-solid fa-arrow-right-to-bracket"></i>
           Enter Classroom
         </a>
-        <div class="secondary-actions">
-          <a href="/leaderboard.html?id=${c.classroom_id}" class="btn btn-outline btn-sm">
-            <i class="fa-solid fa-trophy"></i>
-            Leaderboard
-          </a>
-        </div>
       </div>
     </div>
   `;

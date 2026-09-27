@@ -247,7 +247,8 @@ CREATE TABLE `grades` (
   `feedback` text DEFAULT NULL,
   `graded_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `is_draft` tinyint(1) DEFAULT 0
+  `is_draft` tinyint(1) DEFAULT 0,
+  `status` varchar(50) DEFAULT 'Accepted'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --

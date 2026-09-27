@@ -26,6 +26,11 @@ const uploadFile = async (req, res) => {
     }
 
     const buffer = Buffer.from(base64Content, 'base64');
+    
+    if (buffer.length > 5 * 1024 * 1024) {
+      return res.status(400).json({ success: false, message: 'File size exceeds the 5 MB limit. Please upload a smaller file.' });
+    }
+
     const sanitizedFilename = filename.replace(/[^a-zA-Z0-9_.-]/g, '_');
     const uniqueFilename = `${Date.now()}_${sanitizedFilename}`;
     const filePath = path.join(uploadDirectory, uniqueFilename);
