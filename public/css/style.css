@@ -1327,6 +1327,12 @@ th {
   border: 1px solid var(--border-color);
 }
 
+.code-box pre {
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}
+
 .code-line {
   display: flex;
   gap: 1rem;

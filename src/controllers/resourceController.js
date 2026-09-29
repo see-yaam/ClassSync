@@ -101,8 +101,60 @@ const approveResource = async (req, res) => {
   }
 };
 
+// PUT /api/resources/:id
+const editResource = async (req, res) => {
+  try {
+    const resourceId = req.params.id;
+    const { resource_title, resource_url, resource_description, resource_type } = req.body;
+    const userId = req.user.user_id;
+
+    const [resRows] = await db.query(`SELECT classroom_id, submitted_by FROM resources WHERE resource_id = ?`, [resourceId]);
+    if (resRows.length === 0) return res.status(404).json({ success: false, message: 'Resource not found' });
+
+    const isStaff = await isInstructorOrTA(userId, resRows[0].classroom_id);
+    if (!isStaff && resRows[0].submitted_by !== userId) {
+      return res.status(403).json({ success: false, message: 'Not authorized to edit this resource' });
+    }
+
+    await db.query(
+      `UPDATE resources SET resource_title = ?, resource_url = ?, resource_description = ?, resource_type = ? WHERE resource_id = ?`,
+      [resource_title, resource_url, resource_description || '', resource_type || 'link', resourceId]
+    );
+
+    res.json({ success: true, message: 'Resource updated successfully' });
+  } catch (error) {
+    console.error('Error updating resource:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// DELETE /api/resources/:id
+const deleteResource = async (req, res) => {
+  try {
+    const resourceId = req.params.id;
+    const userId = req.user.user_id;
+
+    const [resRows] = await db.query(`SELECT classroom_id, submitted_by FROM resources WHERE resource_id = ?`, [resourceId]);
+    if (resRows.length === 0) return res.status(404).json({ success: false, message: 'Resource not found' });
+
+    const isStaff = await isInstructorOrTA(userId, resRows[0].classroom_id);
+    if (!isStaff && resRows[0].submitted_by !== userId) {
+      return res.status(403).json({ success: false, message: 'Not authorized to delete this resource' });
+    }
+
+    await db.query(`DELETE FROM resources WHERE resource_id = ?`, [resourceId]);
+
+    res.json({ success: true, message: 'Resource deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting resource:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   addResource,
   getClassroomResources,
-  approveResource
+  approveResource,
+  editResource,
+  deleteResource
 };

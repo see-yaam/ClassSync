@@ -601,7 +601,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <th>Average Grade</th>
                 <th>Late Count</th>
                 <th>Alert Status</th>
-                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -617,13 +616,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <span class="badge ${l.highest_alert === 'red' ? 'badge-red' : 'badge-yellow'}">
                       <i class="fa-solid fa-triangle-exclamation"></i> ${(l.highest_alert || 'AT-RISK').toUpperCase()}
                     </span>
-                  </td>
-                  <td>
-                    ${['instructor', 'TA'].includes((classroomData.user_role || '').toLowerCase()) ? `
-                      <button class="btn btn-outline btn-sm" onclick="openAlertModalForUser(${l.user_id})">
-                        <i class="fa-solid fa-circle-exclamation"></i> Issue Warning Alert
-                      </button>
-                    ` : ''}
                   </td>
                 </tr>
               `).join('')}
@@ -712,6 +704,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       const isStaff = ['instructor', 'ta'].includes((classroomData.user_role || '').toLowerCase());
+      const currentUserId = Number(getActiveUserId());
+      window.resourcesCache = Object.fromEntries(resources.map(r => [r.resource_id, r]));
 
       listEl.innerHTML = resources.map(r => {
         let typeBadge = '';
@@ -726,6 +720,30 @@ document.addEventListener('DOMContentLoaded', async () => {
           typeBadge = `<span class="badge badge-gray"><i class="fa-solid fa-file-lines"></i> TEXT</span>`;
         } else {
           typeBadge = `<span class="badge badge-blue"><i class="fa-solid fa-link"></i> LINK</span>`;
+        }
+
+        const canEditDelete = isStaff || Number(r.submitter_id) === currentUserId;
+        const canApprove = !r.is_approved && isStaff;
+        
+        let actionArea = '';
+        if (canApprove || canEditDelete) {
+            actionArea = `
+              <div style="display: flex; gap: 0.5rem; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                ${canApprove ? `
+                  <button class="btn btn-primary btn-sm" style="flex: 1;" onclick="approveRes(${r.resource_id})">
+                    <i class="fa-solid fa-check"></i> Approve
+                  </button>
+                ` : ''}
+                ${canEditDelete ? `
+                  <button class="btn btn-outline btn-sm" style="flex: 1;" onclick="editResource(${r.resource_id})">
+                    <i class="fa-solid fa-pen"></i> Edit
+                  </button>
+                  <button class="btn btn-outline btn-sm" style="flex: 1; border-color: var(--status-red); color: var(--status-red);" onclick="deleteResource(${r.resource_id})">
+                    <i class="fa-solid fa-trash"></i> Delete
+                  </button>
+                ` : ''}
+              </div>
+            `;
         }
 
         return `
@@ -747,14 +765,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               <p class="card-subtitle">${r.resource_description || 'No description provided.'}</p>
               <div style="font-size: 0.8rem; color: var(--text-muted);">Shared by <strong>${r.submitter_name}</strong></div>
             </div>
-
-            ${!r.is_approved && isStaff ? `
-              <div style="margin-top: 1rem; pt: 1rem; border-top: 1px solid var(--border-color);">
-                <button class="btn btn-primary btn-sm btn-block" onclick="approveRes(${r.resource_id})">
-                  <i class="fa-solid fa-check"></i> Approve Resource
-                </button>
-              </div>
-            ` : ''}
+            ${actionArea}
           </div>
         `;
       }).join('');
@@ -1954,10 +1965,52 @@ document.addEventListener('DOMContentLoaded', async () => {
   const openResBtn = document.getElementById('open-add-resource-btn');
   const closeResBtn = document.getElementById('close-resource-modal');
   const cancelResBtn = document.getElementById('cancel-res-btn');
+  let editingResourceId = null;
+  const resModalTitle = resModal?.querySelector('.modal-header h3');
+  const submitResBtn = document.getElementById('submit-res-btn');
 
-  if (openResBtn) openResBtn.onclick = () => resModal.classList.add('active');
+  const resetResourceModal = () => {
+    editingResourceId = null;
+    document.getElementById('resource-form').reset();
+    document.getElementById('res-file-status').innerHTML = '';
+    if (resModalTitle) resModalTitle.innerHTML = '<i class="fa-solid fa-link" style="color: var(--primary-color);"></i> Share Learning Resource';
+    if (submitResBtn) submitResBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit Resource';
+    document.getElementById('res-error').style.display = 'none';
+  };
+
+  if (openResBtn) openResBtn.onclick = () => {
+    resetResourceModal();
+    resModal.classList.add('active');
+  };
   if (closeResBtn) closeResBtn.onclick = () => resModal.classList.remove('active');
   if (cancelResBtn) cancelResBtn.onclick = () => resModal.classList.remove('active');
+
+  window.editResource = (resourceId) => {
+    const r = window.resourcesCache?.[resourceId];
+    if (!r) return;
+    editingResourceId = r.resource_id;
+    
+    document.getElementById('res-title').value = r.resource_title;
+    document.getElementById('res-url').value = r.resource_url;
+    document.getElementById('res-type').value = r.resource_type || 'link';
+    document.getElementById('res-desc').value = r.resource_description || '';
+    
+    if (resModalTitle) resModalTitle.innerHTML = '<i class="fa-solid fa-pen" style="color: var(--primary-color);"></i> Edit Resource';
+    if (submitResBtn) submitResBtn.innerHTML = '<i class="fa-solid fa-save"></i> Save Changes';
+    
+    resModal.classList.add('active');
+  };
+
+  window.deleteResource = async (resourceId) => {
+    if (!confirm('Are you sure you want to delete this resource?')) return;
+    try {
+      await apiFetch(`/resources/${resourceId}`, { method: 'DELETE' });
+      showToast('Resource deleted successfully.', 'success');
+      loadResourcesTab();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
 
   const resDropzone = document.getElementById('res-dropzone');
   const resFilePicker = document.getElementById('res-file-picker');
@@ -2038,18 +2091,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     try {
-      await apiFetch(`/classrooms/${classroomId}/resources`, {
-        method: 'POST',
-        body: JSON.stringify({
-          resource_title: resTitle,
-          resource_url: resUrl,
-          resource_type: document.getElementById('res-type').value,
-          resource_description: document.getElementById('res-desc').value
-        })
-      });
+      if (editingResourceId) {
+        await apiFetch(`/resources/${editingResourceId}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            resource_title: resTitle,
+            resource_url: resUrl,
+            resource_type: document.getElementById('res-type').value,
+            resource_description: document.getElementById('res-desc').value
+          })
+        });
+        showToast('Resource updated successfully!', 'success');
+      } else {
+        await apiFetch(`/classrooms/${classroomId}/resources`, {
+          method: 'POST',
+          body: JSON.stringify({
+            resource_title: resTitle,
+            resource_url: resUrl,
+            resource_type: document.getElementById('res-type').value,
+            resource_description: document.getElementById('res-desc').value
+          })
+        });
+        showToast('Resource submitted successfully!', 'success');
+      }
       resModal.classList.remove('active');
-      document.getElementById('resource-form').reset();
-      showToast('Resource submitted successfully!', 'success');
+      resetResourceModal();
       loadResourcesTab();
     } catch (err) {
       errorBox.textContent = err.message;
