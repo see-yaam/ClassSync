@@ -23,7 +23,7 @@
           <i class="fa-solid fa-book-open"></i> <span>Homework Sets</span>
         </button>
         <button class="sidebar-item staff-tab" data-tab="tab-matrix">
-          <i class="fa-solid fa-table-cells"></i> <span>All Submissions</span>
+          <i class="fa-solid fa-table-cells"></i> <span>Submissions</span>
         </button>
         <button class="sidebar-item staff-tab" data-tab="tab-health">
           <i class="fa-solid fa-heart-pulse"></i> <span>Class Health</span>
@@ -90,23 +90,20 @@
         </div>
       </div>
 
-      <!-- TAB 2: ALL SUBMISSIONS -->
+      <!-- TAB 2: SUBMISSION MATRIX -->
       <div class="tab-content" id="tab-matrix">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.75rem;">
           <div>
-            <h3 style="font-size: 1.2rem; font-weight: 700;">All Submissions</h3>
+            <h3 style="font-size: 1.2rem; font-weight: 700;">Submission Matrix</h3>
             <p class="card-subtitle" style="margin: 0;">Pivot overview of learner problem submissions and score streaks</p>
           </div>
-          <select id="matrix-hw-select" class="form-control" style="width: auto; max-width: 280px; font-size: 0.85rem; display: none;">
+          <select id="matrix-hw-select" class="form-control" style="width: auto; max-width: 280px; font-size: 0.85rem;">
             <option value="">Select Homework Set</option>
           </select>
         </div>
         <div class="matrix-tab-switcher">
           <button type="button" class="btn btn-primary matrix-view-tab active" data-matrix-view="matrix">
-            <i class="fa-solid fa-table-cells"></i> All Submissions
-          </button>
-          <button type="button" class="btn btn-outline matrix-view-tab" data-matrix-view="roster">
-            <i class="fa-solid fa-users-viewfinder"></i> Submission Roster
+            <i class="fa-solid fa-table-cells"></i> Submission Matrix
           </button>
           <button type="button" class="btn btn-outline matrix-view-tab" data-matrix-view="plagiarism">
             <i class="fa-solid fa-shield-cat"></i> Plagiarism Scan
@@ -115,15 +112,9 @@
         <div id="matrix-container" class="table-responsive">
           <!-- Render Matrix Pivot Table -->
         </div>
-        <div id="submission-roster-container" class="table-responsive" style="display: none;">
-          <!-- Render Submission Roster -->
-        </div>
         <div id="plagiarism-container" class="table-responsive" style="display: none;">
-          <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem;">
-            <select id="plagiarism-hw-select" class="form-control" style="width: auto; min-width: 240px; font-size: 0.85rem;">
-              <option value="">Select Homework Set</option>
-            </select>
-            <div style="display: flex; justify-content: flex-end; gap: 0.5rem; flex-wrap: wrap;">
+          <div style="display: flex; justify-content: flex-end; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem;">
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem; flex-wrap: wrap; width: 100%;">
               <button class="btn btn-outline" id="high-risk-plagiarism-btn" type="button">
                 <i class="fa-solid fa-triangle-exclamation"></i> Show High Risk Only
               </button>
@@ -749,6 +740,34 @@
           <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Save Grade</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Compare Code Modal -->
+  <div class="modal" id="classroom-compare-modal">
+    <div class="modal-content" style="max-width: 900px; width: 90vw;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.15rem; font-weight: 700;"><i class="fa-solid fa-code-compare" style="color: var(--primary-color);"></i> Compare Submissions</h3>
+        <button class="modal-close" id="close-classroom-compare" onclick="document.getElementById('classroom-compare-modal').classList.remove('active')">&times;</button>
+      </div>
+      <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <!-- Learner 1 -->
+        <div style="flex: 1; min-width: 300px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <div class="card-subtitle" id="compare-learner-1-name" style="margin: 0; font-weight: bold; color: var(--text-color);">Loading...</div>
+            <button type="button" class="btn btn-outline btn-sm" id="btn-grade-learner-1" style="border-radius: 20px;"><i class="fa-solid fa-pen-ruler"></i> Grade</button>
+          </div>
+          <div class="code-box" id="compare-learner-1-code" style="height: 400px; overflow-y: auto;">Loading...</div>
+        </div>
+        <!-- Learner 2 -->
+        <div style="flex: 1; min-width: 300px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <div class="card-subtitle" id="compare-learner-2-name" style="margin: 0; font-weight: bold; color: var(--text-color);">Loading...</div>
+            <button type="button" class="btn btn-outline btn-sm" id="btn-grade-learner-2" style="border-radius: 20px;"><i class="fa-solid fa-pen-ruler"></i> Grade</button>
+          </div>
+          <div class="code-box" id="compare-learner-2-code" style="height: 400px; overflow-y: auto;">Loading...</div>
+        </div>
+      </div>
     </div>
   </div>
 

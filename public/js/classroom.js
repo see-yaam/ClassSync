@@ -209,20 +209,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
           </div>
 
-          <div style="display: flex; gap: 0.5rem; margin-top: 1.25rem;">
-            <a href="/homework.html?id=${hw.homework_id}" class="btn btn-primary btn-sm" style="flex: 1;">
+          <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1.25rem;">
+            <a href="/homework.html?id=${hw.homework_id}" class="btn btn-primary btn-sm" style="width: 100%; justify-content: center; text-align: center; display: flex; align-items: center; gap: 0.5rem;">
               <i class="fa-solid ${isInstructor ? 'fa-plus-circle' : 'fa-file-pen'}"></i> ${isInstructor ? 'Manage & Add Questions' : 'View & Submit Solution'}
             </a>
             ${isInstructor ? `
-              <button class="btn btn-outline btn-sm" onclick="togglePublish(${hw.homework_id}, ${!hw.is_published})">
-                ${hw.is_published ? '<i class="fa-solid fa-eye-slash"></i> Unpublish' : '<i class="fa-solid fa-paper-plane"></i> Publish'}
-              </button>
-              <button class="btn btn-secondary btn-sm" title="Edit homework" onclick="openEditHomework(${hw.homework_id})">
-                <i class="fa-solid fa-pen"></i>
-              </button>
-              <button class="btn btn-secondary btn-sm" title="Delete homework" style="border-color: var(--status-red); color: var(--status-red);" onclick="deleteHomeworkItem(${hw.homework_id})">
-                <i class="fa-solid fa-trash"></i>
-              </button>
+              <div style="display: flex; gap: 0.5rem;">
+                <button class="btn btn-outline btn-sm" style="flex: 1; justify-content: center; text-align: center; display: flex; align-items: center; gap: 0.5rem;" onclick="togglePublish(${hw.homework_id}, ${!hw.is_published})">
+                  ${hw.is_published ? '<i class="fa-solid fa-eye-slash"></i> Unpublish' : '<i class="fa-solid fa-paper-plane"></i> Publish'}
+                </button>
+                <button class="btn btn-secondary btn-sm" style="flex: 0 0 auto; justify-content: center; display: flex; align-items: center; padding: 0.4rem 0.8rem;" title="Edit homework" onclick="openEditHomework(${hw.homework_id})">
+                  <i class="fa-solid fa-pen"></i>
+                </button>
+                <button class="btn btn-secondary btn-sm" title="Delete homework" style="flex: 0 0 auto; justify-content: center; display: flex; align-items: center; padding: 0.4rem 0.8rem; border-color: var(--status-red); color: var(--status-red);" onclick="deleteHomeworkItem(${hw.homework_id})">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </div>
             ` : ''}
           </div>
         </div>
@@ -243,6 +245,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const hwRes = await apiFetch(`/classrooms/${classroomId}/homework`);
       selectEl.innerHTML = '<option value="">-- Select Homework Set --</option>' +
         hwRes.data.map(h => `<option value="${h.homework_id}">${h.title}</option>`).join('');
+      if (hwRes.data.length > 0) {
+        selectEl.value = hwRes.data[hwRes.data.length - 1].homework_id;
+      }
 
       // Setup tab switchers first so they work even if matrix fails to load
       const matrixViewTabs = document.querySelectorAll('.matrix-view-tab');
@@ -259,20 +264,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           tab.classList.add('btn-primary');
 
           const activeView = tab.dataset.matrixView;
-          const showRoster = activeView === 'roster';
           const showPlagiarism = activeView === 'plagiarism';
           containerEl.style.display = activeView === 'matrix' ? 'block' : 'none';
-          document.getElementById('submission-roster-container').style.display = showRoster ? 'block' : 'none';
           document.getElementById('plagiarism-container').style.display = showPlagiarism ? 'block' : 'none';
           
-          if (showRoster) {
-             selectEl.style.display = 'none'; // Hide select for roster
-             loadSubmissionRoster();
-          } else if (showPlagiarism) {
-             selectEl.style.display = 'none'; // Plagiarism has its own select
+          if (showPlagiarism) {
              loadPlagiarismTab();
-          } else {
-             selectEl.style.display = 'none'; // Hide select for Matrix
           }
         };
       });
@@ -290,44 +287,71 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
       } else {
         containerEl.innerHTML = `
-          <table>
-            <thead>
-              <tr>
-                <th>Task</th>
-                ${learners.map(l => `<th style="text-align: center;" title="${escapeHtml(l.email)}">${escapeHtml(l.full_name)}</th>`).join('')}
-              </tr>
-            </thead>
-            <tbody>
-              ${matrix.map(hw => `
-                <tr style="background: var(--card-bg); font-weight: 700; border-top: 2px solid var(--border-color);">
-                  <td colspan="${learners.length + 1}">${escapeHtml(hw.title)}</td>
+          <div class="table-responsive" style="border-radius: 8px; border: 1px solid var(--border-color); overflow: hidden; background: var(--bg-body);">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem; font-family: var(--font-mono, monospace);">
+              <thead style="background: var(--table-head-bg); border-bottom: 2px solid var(--border-color);">
+                <tr>
+                  <th style="padding: 0.75rem 1rem; font-weight: 600; color: var(--text-muted); position: sticky; left: 0; background: var(--table-head-bg); z-index: 2; min-width: 280px; font-family: var(--font-main, sans-serif);">Task</th>
+                  ${learners.map((l, idx) => `<th style="padding: 0.75rem 0.25rem; text-align: center; font-weight: 600; color: var(--text-muted); cursor: help;" title="${escapeHtml(l.full_name)} (${escapeHtml(l.email)})">
+                    ${String(idx + 1).padStart(2, '0')}
+                  </th>`).join('')}
                 </tr>
-                ${hw.questions.map(q => `
-                  <tr>
-                    <td style="padding-left: 2rem;">#${q.order_number || q.question_id} ${escapeHtml(q.question_text.substring(0, 50))}${q.question_text.length > 50 ? '...' : ''}</td>
-                    ${learners.map(l => {
-                      const qData = q.learnerStatuses[l.user_id];
-                      let icon = '<i class="fa-solid fa-minus" style="color: var(--text-muted); opacity: 0.3;"></i>';
-                      if (qData.status === 'green') {
-                        icon = '<i class="fa-solid fa-check" style="color: var(--status-green);"></i>';
-                      } else if (qData.status === 'orange') {
-                        icon = '<i class="fa-solid fa-triangle-exclamation" style="color: var(--status-orange);"></i>';
-                      }
-                      return `
-                        <td style="text-align: center; cursor: pointer;" title="${qData.label}${qData.score !== null ? ` (${qData.score}pts)` : ''}" ${qData.submission_id ? `onclick="openClassroomSubmissionView(${qData.submission_id})"` : ''}>
-                          ${icon}
-                        </td>
-                      `;
-                    }).join('')}
+              </thead>
+              <tbody>
+                ${matrix.map(hw => `
+                  <!-- Homework Row -->
+                  <tr style="background: var(--card-bg); border-top: 1px solid var(--border-color);">
+                    <td colspan="${learners.length + 1}" style="padding: 0.75rem 1rem; position: sticky; left: 0; background: inherit; z-index: 1;">
+                      <span style="font-size: 0.95rem; font-weight: 700; color: var(--text-color); font-family: var(--font-main, sans-serif);">${escapeHtml(hw.title)}</span>
+                    </td>
                   </tr>
+                  <!-- Question Rows -->
+                  ${hw.questions.map(q => `
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.02); transition: background-color 0.1s;" onmouseover="this.style.background='rgba(128,128,128,0.05)'" onmouseout="this.style.background='transparent'">
+                      <td style="padding: 0.4rem 1rem; position: sticky; left: 0; background: var(--bg-body); z-index: 1; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted);" title="${escapeHtml(q.question_text)}">
+                        <span style="color: var(--text-muted); opacity: 0.7; margin-right: 0.25rem;">#${q.order_number || q.question_id}</span> ${escapeHtml(q.question_text)}
+                      </td>
+                      ${learners.map(l => {
+                        const qData = q.learnerStatuses[l.user_id];
+                        let icon = '<div style="width: 14px; height: 14px; background-color: var(--text-muted); border-radius: 4px; display: inline-block; opacity: 0.15;"></div>';
+                        if (qData.status === 'green') {
+                          icon = '<i class="fa-solid fa-check" style="color: var(--status-green); font-size: 1rem;"></i>';
+                        } else if (qData.status === 'orange') {
+                          icon = '<i class="fa-solid fa-triangle-exclamation" style="color: var(--status-orange); font-size: 1rem;"></i>';
+                        }
+                        
+                        return `
+                          <td style="text-align: center; padding: 0.4rem 0.25rem; vertical-align: middle; cursor: ${qData.submission_id ? 'pointer' : 'default'};" 
+                              title="${escapeHtml(l.full_name)}: ${qData.label}${qData.score !== null ? ` (${qData.score}pts)` : ''}" 
+                              ${qData.submission_id ? `onclick="openClassroomSubmissionView(${qData.submission_id})"` : ''}>
+                            <div style="transition: transform 0.1s; display: flex; justify-content: center; align-items: center; height: 24px; ${qData.submission_id ? 'cursor: pointer;' : ''}" 
+                                 onmouseover="this.style.transform='scale(1.2)'" 
+                                 onmouseout="this.style.transform='scale(1)'">
+                              ${icon}
+                            </div>
+                          </td>
+                        `;
+                      }).join('')}
+                    </tr>
+                  `).join('')}
                 `).join('')}
-              `).join('')}
-            </tbody>
-          </table>
-          <div style="margin-top: 1rem; display: flex; gap: 1rem; font-size: 0.8rem; color: var(--text-muted);">
-            <div><i class="fa-solid fa-check" style="color: var(--status-green);"></i> On time</div>
-            <div><i class="fa-solid fa-triangle-exclamation" style="color: var(--status-orange);"></i> Late</div>
-            <div><i class="fa-solid fa-minus" style="color: var(--text-muted); opacity: 0.3;"></i> Not submitted</div>
+              </tbody>
+            </table>
+          </div>
+          
+          <div style="margin-top: 1rem; display: flex; align-items: center; gap: 1.5rem; font-size: 0.8rem; color: var(--text-muted);">
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+              <i class="fa-solid fa-check" style="color: var(--status-green);"></i> 
+              <span>On time / Accepted</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+              <i class="fa-solid fa-triangle-exclamation" style="color: var(--status-orange);"></i> 
+              <span>Late / Needs Review</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+              <div style="width: 12px; height: 12px; background-color: var(--text-muted); border-radius: 3px; opacity: 0.2;"></div> 
+              <span>Not submitted</span>
+            </div>
           </div>
         `;
       }
@@ -347,98 +371,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
-  const loadSubmissionRoster = async () => {
-    const rosterEl = document.getElementById('submission-roster-container');
-    rosterEl.innerHTML = renderSkeletonRows(3);
-
-    try {
-      const res = await apiFetch(`/classrooms/${classroomId}/gradings?filter=all&sort=date`);
-      const submissions = res.data || [];
-
-      if (submissions.length === 0) {
-        rosterEl.innerHTML = renderEmptyState({
-          icon: 'inbox',
-          title: 'No Submissions Yet',
-          message: 'No learner submissions have been recorded in this classroom.'
-        });
-        return;
-      }
-
-      // Group submissions by Homework -> Question
-      const hwMap = {};
-      submissions.forEach(sub => {
-        if (!hwMap[sub.homework_id]) {
-          hwMap[sub.homework_id] = { title: sub.homework_title, questions: {} };
-        }
-        if (!hwMap[sub.homework_id].questions[sub.question_id]) {
-          hwMap[sub.homework_id].questions[sub.question_id] = { title: sub.question_title, submissions: [] };
-        }
-        hwMap[sub.homework_id].questions[sub.question_id].submissions.push(sub);
-      });
-
-      let treeHtml = '<div style="display: flex; flex-direction: column; gap: 1rem;">';
-      
-      Object.entries(hwMap).forEach(([hwId, hwData]) => {
-        treeHtml += `
-          <details class="tree-hw" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;">
-            <summary style="padding: 1rem 1.25rem; font-weight: 700; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; gap: 0.75rem; background: rgba(0,0,0,0.02); border-bottom: 1px solid var(--border-color); list-style: none;">
-              <i class="fa-solid fa-folder-open" style="color: var(--primary-color);"></i> ${escapeHtml(hwData.title)}
-            </summary>
-            <div style="padding: 1rem;">
-        `;
-        
-        Object.entries(hwData.questions).forEach(([qId, qData]) => {
-          treeHtml += `
-            <details class="tree-q" style="margin-left: 1rem; margin-bottom: 0.75rem;">
-              <summary style="padding: 0.75rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; background: var(--bg-body); border-radius: 6px; border: 1px solid var(--border-color); list-style: none;">
-                <i class="fa-regular fa-circle-question" style="color: var(--status-orange);"></i> ${escapeHtml(qData.title)}
-                <span class="badge badge-gray" style="margin-left: auto;">${qData.submissions.length} submission(s)</span>
-              </summary>
-              <div style="padding-left: 1.5rem; margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
-          `;
-          
-          qData.submissions.forEach(sub => {
-            const isGraded = sub.is_graded;
-            let statusBadge = `<span style="background: var(--bg-body); color: var(--text-muted); border-radius: 9999px; padding: 0.15rem 0.6rem; font-size: 0.75rem; border: 1px solid var(--border-color);">Pending</span>`;
-            if (isGraded) {
-               const st = sub.status || 'Accepted';
-               if (st === 'Accepted') statusBadge = `<span style="background: rgba(34, 197, 94, 0.1); color: var(--status-green, #22c55e); border-radius: 9999px; padding: 0.15rem 0.6rem; font-size: 0.75rem; font-weight: bold;">${st} ${sub.score}/${sub.max_score}</span>`;
-               else if (st === 'Wrong') statusBadge = `<span style="background: rgba(239, 68, 68, 0.1); color: var(--status-red, #ef4444); border-radius: 9999px; padding: 0.15rem 0.6rem; font-size: 0.75rem; font-weight: bold;">${st} ${sub.score}/${sub.max_score}</span>`;
-               else statusBadge = `<span style="background: rgba(245, 158, 11, 0.1); color: var(--status-orange, #f59e0b); border-radius: 9999px; padding: 0.15rem 0.6rem; font-size: 0.75rem; font-weight: bold;">${st} ${sub.score}/${sub.max_score}</span>`;
-            }
-               
-            treeHtml += `
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-card); cursor: pointer; transition: border-color 0.2s ease;" onmouseover="this.style.borderColor='var(--primary-color)'" onmouseout="this.style.borderColor='var(--border-color)'" onclick="window.openClassroomGradeModal(${sub.submission_id})">
-                  <div style="display: flex; align-items: center; gap: 0.75rem;">
-                    <span style="color: var(--text-muted); font-family: monospace;">${sub.learner_id}</span>
-                    <span style="font-weight: bold; color: var(--text-color);">${escapeHtml(sub.learner_name).toUpperCase()}</span>
-                  </div>
-                  <div>
-                    ${statusBadge}
-                  </div>
-                </div>
-            `;
-          });
-          
-          treeHtml += `
-              </div>
-            </details>
-          `;
-        });
-        
-        treeHtml += `
-            </div>
-          </details>
-        `;
-      });
-      
-      treeHtml += '</div>';
-      rosterEl.innerHTML = treeHtml;
-
-    } catch (err) {
-      rosterEl.innerHTML = `<div class="card"><p style="color: var(--status-red);">Error: ${escapeHtml(err.message)}</p></div>`;
-    }
-  };
 
   const classroomViewModal = document.getElementById('classroom-submission-view-modal');
   const classroomGradeModal = document.getElementById('classroom-grade-modal');
@@ -449,6 +381,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('cancel-classroom-grade').onclick = () => classroomGradeModal.classList.remove('active');
 
   window.openClassroomSubmissionView = async (submissionId) => {
+    if (classroomData && ['instructor', 'ta'].includes((classroomData.user_role || '').toLowerCase())) {
+      return window.openClassroomGradeModal(submissionId);
+    }
+    
     const titleEl = document.getElementById('classroom-submission-title');
     const typeEl = document.getElementById('classroom-submission-type');
     const contentEl = document.getElementById('classroom-submission-content');
@@ -601,10 +537,40 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
       classroomGradeModal.classList.remove('active');
       showToast('Grade saved successfully!', 'success');
-      loadSubmissionRoster(); // Reload roster tree view
+      // No roster to reload anymore. In future, we could auto-reload the matrix view if desired.
     } catch (err) {
       errorEl.textContent = err.message;
       errorEl.style.display = 'block';
+    }
+  };
+
+  // Compare Code Modal Logic
+  const compareModal = document.getElementById('classroom-compare-modal');
+  
+  window.openCompareModal = async (subId1, name1, subId2, name2) => {
+    document.getElementById('compare-learner-1-name').textContent = name1;
+    document.getElementById('compare-learner-2-name').textContent = name2;
+    document.getElementById('compare-learner-1-code').innerHTML = 'Loading code...';
+    document.getElementById('compare-learner-2-code').innerHTML = 'Loading code...';
+    
+    document.getElementById('btn-grade-learner-1').onclick = () => window.openClassroomGradeModal(subId1);
+    document.getElementById('btn-grade-learner-2').onclick = () => window.openClassroomGradeModal(subId2);
+
+    compareModal.classList.add('active');
+
+    try {
+      const [res1, res2] = await Promise.all([
+        apiFetch(`/submissions/${subId1}`),
+        apiFetch(`/submissions/${subId2}`)
+      ]);
+      
+      const code1 = res1.data?.code_content || '// No code found';
+      const code2 = res2.data?.code_content || '// No code found';
+
+      document.getElementById('compare-learner-1-code').innerHTML = `<pre><code>${escapeHtml(code1)}</code></pre>`;
+      document.getElementById('compare-learner-2-code').innerHTML = `<pre><code>${escapeHtml(code2)}</code></pre>`;
+    } catch (err) {
+      showToast('Error loading submissions for comparison: ' + err.message, 'error');
     }
   };
 
@@ -1052,6 +1018,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               <th>Similarity Match</th>
               <th>Risk Level</th>
               <th>Review Status</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody>
@@ -1073,8 +1040,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <div style="font-weight: 700;">${escapeHtml(f.homework_title)}</div>
                     <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(f.question_text)}</div>
                   </td>
-                  <td>${escapeHtml(f.learner_1_name)}</td>
-                  <td>${escapeHtml(f.learner_2_name)}</td>
+                  <td>
+                    <button class="btn btn-sm" style="background: rgba(0,0,0,0.03); color: var(--primary-color); border: 1px solid var(--border-color); font-weight: 600; padding: 0.35rem 0.75rem; border-radius: 6px;" onclick="window.openClassroomGradeModal(${f.submission_id_1})" title="View Code">
+                      <i class="fa-solid fa-code"></i> ${escapeHtml(f.learner_1_name)}
+                    </button>
+                  </td>
+                  <td>
+                    <button class="btn btn-sm" style="background: rgba(0,0,0,0.03); color: var(--primary-color); border: 1px solid var(--border-color); font-weight: 600; padding: 0.35rem 0.75rem; border-radius: 6px;" onclick="window.openClassroomGradeModal(${f.submission_id_2})" title="View Code">
+                      <i class="fa-solid fa-code"></i> ${escapeHtml(f.learner_2_name)}
+                    </button>
+                  </td>
                   <td>
                     <span class="badge ${riskBadgeClass}"><i class="${riskBadgeIcon}"></i> ${score.toFixed(2)}% Match</span>
                   </td>
@@ -1085,6 +1060,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     ${f.is_reviewed
               ? '<span class="badge badge-green"><i class="fa-solid fa-check"></i> Reviewed</span>'
               : '<span class="badge badge-yellow"><i class="fa-solid fa-clock"></i> Unreviewed</span>'}
+                  </td>
+                  <td>
+                    <button class="btn btn-sm btn-primary" onclick="window.openCompareModal(${f.submission_id_1}, '${escapeHtml(f.learner_1_name)}', ${f.submission_id_2}, '${escapeHtml(f.learner_2_name)}')">
+                      <i class="fa-solid fa-code-compare"></i> Compare
+                    </button>
                   </td>
                 </tr>
               `;
