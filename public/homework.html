@@ -38,7 +38,7 @@
 
   <!-- Add Question Modal (Instructor) -->
   <div class="modal" id="add-q-modal">
-    <div class="modal-content">
+    <div class="modal-content" style="max-width: 780px;">
       <div class="modal-header">
         <h3 style="font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
           <i class="fa-solid fa-circle-question" style="color: var(--primary-color);"></i> <span id="add-q-modal-title">Add Question to Homework</span>
@@ -48,12 +48,24 @@
       <form id="add-q-form">
         <div id="add-q-error" class="form-error-msg" style="display: none; margin-bottom: 1rem;"></div>
 
-
+        <!-- Question Type Toggle -->
+        <div class="form-group">
+          <label>Question Type</label>
+          <div style="display: flex; gap: 0.75rem;">
+            <label id="type-toggle-regular" class="q-type-pill q-type-active" onclick="setQuestionType('regular')">
+              <i class="fa-solid fa-pen-to-square"></i> Regular / Text
+            </label>
+            <label id="type-toggle-coding" class="q-type-pill" onclick="setQuestionType('coding')">
+              <i class="fa-solid fa-code"></i> 💻 Coding Problem (Auto-Eval)
+            </label>
+          </div>
+          <input type="hidden" id="q-is-coding" value="0">
+        </div>
 
         <div class="form-group">
-          <label for="q-text">Question Prompt / Statement *</label>
-          <textarea id="q-text" class="form-control" style="height: 85px;" placeholder="Type question description or paste text/code..." required></textarea>
-          
+          <label for="q-text">Problem Statement / Question *</label>
+          <textarea id="q-text" class="form-control" style="height: 100px;" placeholder="Describe the problem. For coding: describe input/output format, constraints, examples..." required></textarea>
+
           <div class="file-dropzone" id="q-dropzone" onclick="document.getElementById('q-file-picker').click()">
             <i class="fa-solid fa-cloud-arrow-up file-dropzone-icon"></i>
             <div class="file-dropzone-text">Drag & Drop Question File (PDF, PPTX, DOCX, Code, Text)</div>
@@ -69,12 +81,61 @@
           <input type="number" id="q-points" class="form-control" value="10" required>
         </div>
 
-        <div style="padding-top: 1rem; border-top: 1px solid var(--border-color);">
+        <!-- ═══ CODING QUESTION FIELDS ═══ -->
+        <div id="coding-fields" style="display: none;">
+          <div style="background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.06)); border: 1px solid rgba(99,102,241,0.25); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;">
+            <h4 style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #818cf8; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.4rem;">
+              <i class="fa-solid fa-robot"></i> Auto-Evaluation Settings
+            </h4>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label for="q-time-limit">Time Limit (seconds)</label>
+                <input type="number" id="q-time-limit" class="form-control" value="2" min="1" max="10" step="0.5">
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label for="q-memory">Memory Limit (MB)</label>
+                <input type="number" id="q-memory" class="form-control" value="128" min="32" max="512">
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0.75rem;">
+              <label for="q-func-sig">Required Function / Entry Point <span style="font-weight:400; opacity:0.6;">(optional hint for students)</span></label>
+              <input type="text" id="q-func-sig" class="form-control" placeholder="e.g. solve(n, arr)  or  main()">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="q-starter">Starter Code Template <span style="font-weight:400; opacity:0.6;">(optional)</span></label>
+              <textarea id="q-starter" class="form-control" style="height: 80px; font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 0.82rem;" placeholder="# Write your solution here&#10;def solve(n):&#10;    pass"></textarea>
+            </div>
+          </div>
+
+          <!-- Test Cases -->
+          <div style="background: var(--table-head-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.25rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+              <h4 style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--primary-color); margin: 0; display: flex; align-items: center; gap: 0.4rem;">
+                <i class="fa-solid fa-flask-vial"></i> Test Cases
+              </h4>
+              <button type="button" class="btn btn-outline btn-sm" id="add-test-case-btn">
+                <i class="fa-solid fa-plus"></i> Add Test Case
+              </button>
+            </div>
+            <div id="test-cases-container">
+              <p style="font-size: 0.82rem; color: var(--text-muted); text-align: center; padding: 0.5rem;">
+                No test cases yet. Add at least one to enable auto-evaluation.
+              </p>
+            </div>
+          </div>
+        </div>
+        <!-- ═══ END CODING FIELDS ═══ -->
+
+        <!-- Regular question answer key -->
+        <div id="regular-answer-key" style="padding-top: 1rem; border-top: 1px solid var(--border-color);">
           <h4 style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--primary-color); margin-bottom: 0.5rem;">Instructor Answer Key (Optional)</h4>
           <div class="form-group">
             <label for="q-ans-text">Official Solution Text / Code</label>
             <textarea id="q-ans-text" class="form-control" style="height: 70px;" placeholder="Unlocked for learners only AFTER submitting their solution"></textarea>
-            
+
             <div class="file-dropzone" id="q-ans-dropzone" onclick="document.getElementById('q-ans-file-picker').click()">
               <i class="fa-solid fa-cloud-arrow-up file-dropzone-icon"></i>
               <div class="file-dropzone-text">Drag & Drop Official Answer File (PDF, PPTX, DOCX, Code, Text)</div>
@@ -209,6 +270,139 @@
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Auto-Eval Results Modal (Learner sees this after submit) ═══ -->
+  <div class="modal" id="auto-eval-modal">
+    <div class="modal-content" style="max-width: 680px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+          <i class="fa-solid fa-robot" style="color: #818cf8;"></i> Auto-Evaluation Results
+        </h3>
+        <button class="modal-close" id="close-auto-eval-modal">&times;</button>
+      </div>
+      <div id="auto-eval-summary" style="padding: 1rem 0; border-bottom: 1px solid var(--border-color); margin-bottom: 1rem;"></div>
+      <div id="auto-eval-results-list" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 400px; overflow-y: auto;"></div>
+      <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end;">
+        <button class="btn btn-primary" onclick="document.getElementById('auto-eval-modal').classList.remove('active')">
+          Done
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Teacher Approval Modal ═══ -->
+  <div class="modal" id="approval-modal">
+    <div class="modal-content" style="max-width: 720px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+          <i class="fa-solid fa-shield-check" style="color: #22c55e;"></i> Review & Approve Submission
+        </h3>
+        <button class="modal-close" id="close-approval-modal">&times;</button>
+      </div>
+      <div id="approval-learner-info" style="margin-bottom: 1rem; font-size: 0.9rem; color: var(--text-muted);"></div>
+
+      <!-- Auto Eval Summary Banner -->
+      <div id="approval-eval-banner" style="background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.06)); border: 1px solid rgba(99,102,241,0.2); border-radius: 10px; padding: 1rem; margin-bottom: 1rem;"></div>
+
+      <!-- Code View -->
+      <div style="margin-bottom: 1rem;">
+        <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.4rem; display:flex; align-items:center; gap:0.4rem;">
+          <i class="fa-solid fa-code"></i> Submitted Code
+        </div>
+        <div class="code-box" style="max-height: 180px; overflow-y: auto; font-size: 0.82rem;" id="approval-code-view">No content</div>
+      </div>
+
+      <!-- Test Case Results -->
+      <div id="approval-test-results" style="margin-bottom: 1rem; max-height: 250px; overflow-y: auto;"></div>
+
+      <!-- Approval Actions -->
+      <div style="background: var(--table-head-bg); border-radius: 10px; padding: 1rem;">
+        <div style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.75rem;">Teacher Decision</div>
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 200px;">
+            <label for="approval-feedback" style="font-size: 0.82rem; font-weight: 600; display:block; margin-bottom: 0.35rem;">Feedback (optional)</label>
+            <textarea id="approval-feedback" class="form-control" style="height: 60px;" placeholder="Add feedback for the student..."></textarea>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 0.5rem; justify-content: flex-end;">
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <input type="number" id="override-score-input" class="form-control" style="width: 90px;" placeholder="Score" step="0.5">
+              <button class="btn btn-outline btn-sm" id="override-grade-btn" style="white-space: nowrap;">
+                <i class="fa-solid fa-pen"></i> Override
+              </button>
+            </div>
+            <button class="btn btn-primary" id="approve-grade-btn" style="background: linear-gradient(135deg, #22c55e, #16a34a);">
+              <i class="fa-solid fa-circle-check"></i> Approve Auto Score
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Code Editor Modal (Learner — full-screen coding) ═══ -->
+  <div class="modal" id="code-editor-modal">
+    <div class="modal-content" style="max-width: 1100px; height: 90vh; display: flex; flex-direction: column;">
+      <div class="modal-header" style="flex-shrink: 0; align-items: center; justify-content: space-between;">
+        <h3 style="font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; margin: 0;">
+          <i class="fa-solid fa-terminal" style="color: #818cf8;"></i>
+          <span id="editor-question-title">Code Editor</span>
+        </h3>
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin: 0; display: flex; align-items: center; gap: 0.3rem;">
+            <i class="fa-solid fa-code" style="color: #818cf8;"></i> Language:
+          </label>
+          <select id="editor-lang-select" class="form-control" style="font-size: 0.82rem; padding: 0.25rem 0.6rem; border-radius: 6px; background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border-color); cursor: pointer; min-width: 150px;">
+            <option value="c">C (GCC)</option>
+            <option value="cpp">C++ (GCC)</option>
+            <option value="python">Python 3</option>
+            <option value="javascript">JavaScript (Node.js)</option>
+            <option value="java">Java (OpenJDK)</option>
+            <option value="csharp">C# (.NET)</option>
+            <option value="go">Go</option>
+            <option value="ruby">Ruby</option>
+            <option value="php">PHP</option>
+          </select>
+          <button class="modal-close" id="close-code-editor-modal">&times;</button>
+        </div>
+      </div>
+      <div style="display: flex; gap: 1rem; flex: 1; overflow: hidden; padding: 0; min-height: 0;">
+        <!-- Problem statement -->
+        <div style="width: 340px; flex-shrink: 0; overflow-y: auto; padding: 1rem; border-right: 1px solid var(--border-color);">
+          <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.5rem; letter-spacing: 0.06em;">Problem Statement</div>
+          <div id="editor-problem-text" style="font-size: 0.88rem; line-height: 1.6; white-space: pre-wrap;"></div>
+          <!-- Public test cases -->
+          <div style="margin-top: 1.25rem;">
+            <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.5rem; letter-spacing: 0.06em;">
+              <i class="fa-solid fa-vial"></i> Sample Test Cases
+            </div>
+            <div id="editor-sample-tests"></div>
+          </div>
+        </div>
+        <!-- Editor area -->
+        <div style="flex: 1; display: flex; flex-direction: column; min-width: 0; padding: 1rem;">
+          <textarea id="code-editor-textarea" style="
+            flex: 1; resize: none; font-family: 'JetBrains Mono', 'Courier New', monospace;
+            font-size: 0.875rem; line-height: 1.6; background: #0d1117; color: #e6edf3;
+            border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem;
+            outline: none; tab-size: 4;
+          " placeholder="// Write your solution here" spellcheck="false"></textarea>
+          <!-- Run results -->
+          <div id="run-results-area" style="margin-top: 0.75rem; display: none;">
+            <div id="run-results-content"></div>
+          </div>
+          <!-- Buttons -->
+          <div style="display: flex; gap: 0.75rem; margin-top: 0.75rem; justify-content: flex-end; flex-shrink: 0;">
+            <button class="btn btn-outline" id="run-code-btn">
+              <i class="fa-solid fa-play"></i> Run (Public Tests)
+            </button>
+            <button class="btn btn-primary" id="submit-code-btn" style="background: linear-gradient(135deg, #6366f1, #8b5cf6);">
+              <i class="fa-solid fa-paper-plane"></i> Submit & Auto-Evaluate
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>

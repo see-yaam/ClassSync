@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   const urlParams = new URLSearchParams(window.location.search);
   const targetEmail = urlParams.get('email');
+  const redirectTarget = urlParams.get('redirect');
 
   if (targetEmail) {
     document.getElementById('otp-target-email').textContent = `Verification code sent to ${targetEmail}`;
@@ -42,10 +43,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       localStorage.setItem('classsync_token', res.token);
       localStorage.setItem('classsync_user', JSON.stringify(res.user));
+      localStorage.setItem('classsync_user_id', res.user.user_id);
 
       showToast('Account verified successfully!', 'success');
       setTimeout(() => {
-        window.location.href = '/index.html';
+        window.location.href = redirectTarget ? decodeURIComponent(redirectTarget) : '/index.html';
       }, 500);
     } catch (err) {
       errorBox.textContent = err.message;

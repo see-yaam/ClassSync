@@ -1,4 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const redirectTarget = urlParams.get('redirect');
+
+  if (redirectTarget) {
+    const regLink = document.querySelector('a[href="/register.html"]');
+    if (regLink) {
+      regLink.href = `/register.html?redirect=${encodeURIComponent(redirectTarget)}`;
+    }
+  }
+
   const form = document.getElementById('login-form');
   const btn = document.getElementById('login-btn');
   const errorBox = document.getElementById('login-error');
@@ -33,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       showToast('Login successful! Redirecting...', 'success');
       setTimeout(() => {
-        window.location.href = '/index.html';
+        window.location.href = redirectTarget ? decodeURIComponent(redirectTarget) : '/index.html';
       }, 500);
     } catch (err) {
       errorBox.textContent = err.message;

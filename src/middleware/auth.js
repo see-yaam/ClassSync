@@ -14,7 +14,7 @@ const verifyToken = async (req, res, next) => {
     }
 
     // Fallback for development/testing: check x-user-id header
-    const mockUserId = req.headers['x-user-id'] || req.query.mock_user_id;
+    const allowMock = process.env.ALLOW_MOCK_AUTH === 'true' || process.env.NODE_ENV === 'test';
 
     let userId = null;
 
@@ -25,10 +25,10 @@ const verifyToken = async (req, res, next) => {
       } catch (err) {
         return res.status(401).json({ success: false, message: 'Invalid or expired authentication token. Please log in again.' });
       }
-    } else if (mockUserId) {
+    } else if (mockUserId && allowMock) {
       userId = parseInt(mockUserId, 10);
     } else {
-      return res.status(401).json({ success: false, message: 'Authentication required. Please log in.' });
+      return res.status(401).json({ success: false, message: 'Authentication required. Please log in or register first.' });
     }
 
     // Fetch user details from database
@@ -57,6 +57,7 @@ const optionalToken = async (req, res, next) => {
       token = authHeader.substring(7).trim();
     }
     const mockUserId = req.headers['x-user-id'] || req.query.mock_user_id;
+    const allowMock = process.env.ALLOW_MOCK_AUTH === 'true' || process.env.NODE_ENV === 'test';
 
     let userId = null;
 
@@ -67,7 +68,7 @@ const optionalToken = async (req, res, next) => {
       } catch (err) {
         // Ignore token errors for optional auth
       }
-    } else if (mockUserId) {
+    } else if (mockUserId && allowMock) {
       userId = parseInt(mockUserId, 10);
     }
 

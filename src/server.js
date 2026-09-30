@@ -30,6 +30,7 @@ app.use('/api', require('./routes/alertRoutes'));
 app.use('/api', require('./routes/plagiarismRoutes'));
 app.use('/api', require('./routes/uploadRoutes'));
 app.use('/api', require('./routes/messageRoutes'));
+app.use('/api', require('./routes/autoEvalRoutes'));
 
 // Fallback to login.html if not authenticated, or index.html for static routes
 app.get('*', (req, res, next) => {

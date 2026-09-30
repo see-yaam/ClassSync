@@ -1,4 +1,12 @@
 document.addEventListener('DOMContentLoaded', async () => {
+  const token = getAuthToken();
+  if (!token) {
+    showToast('Please log in or register to access this homework.', 'warning');
+    const redirectUrl = encodeURIComponent(window.location.pathname + window.location.search + window.location.hash);
+    window.location.href = `/login.html?redirect=${redirectUrl}`;
+    return;
+  }
+
   const urlParams = new URLSearchParams(window.location.search);
   const homeworkId = urlParams.get('id');
 
@@ -110,8 +118,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let html = questions.map((q, idx) => {
       const qType = (q.question_type || 'text').toLowerCase();
+      const isCodingQ = q.is_coding_question;
       let typeBadge = '';
-      if (qType === 'pdf') {
+      if (isCodingQ) {
+        typeBadge = `<span class="badge" style="background:rgba(99,102,241,0.12); color:#818cf8; border:1px solid rgba(99,102,241,0.25);"><i class="fa-solid fa-robot"></i> Auto-Eval Coding</span>`;
+      } else if (qType === 'pdf') {
         typeBadge = `<span class="badge badge-red"><i class="fa-solid fa-file-pdf"></i> PDF Attachment</span>`;
       } else if (qType === 'pptx') {
         typeBadge = `<span class="badge badge-yellow"><i class="fa-solid fa-file-powerpoint"></i> PPTX Presentation</span>`;
@@ -205,7 +216,21 @@ document.addEventListener('DOMContentLoaded', async () => {
               </div>
             ` : '<p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem;">You have not submitted a solution for Question ' + (idx + 1) + ' yet.</p>'}
 
-            <!-- Submission Form -->
+            <!-- Submission Form / Code Editor Button -->
+            ${isCodingQ ? `
+              <div style="margin-top: 0.75rem;">
+                <button class="btn btn-primary" onclick="openCodeEditor(${q.question_id})" style="background: linear-gradient(135deg, #6366f1, #8b5cf6);">
+                  <i class="fa-solid fa-code"></i> ${q.submission_id && !q.score ? 'Resubmit / Update Code' : q.submission_id ? 'View / Resubmit Code' : 'Open Code Editor & Submit'}
+                </button>
+                ${q.submission_id && q.auto_eval_score !== null && q.auto_eval_score !== undefined ? `
+                  <div style="display:inline-flex; align-items:center; gap:0.5rem; margin-left:0.75rem; font-size:0.82rem; color:var(--text-muted);">
+                    <i class="fa-solid fa-robot" style="color:#818cf8;"></i>
+                    Auto score: <strong style="color:#818cf8;">${q.auto_eval_score} pts</strong>
+                    <span style="font-size:0.75rem; opacity:0.7;">(${q.auto_eval_status === 'done' ? 'awaiting approval' : q.auto_eval_status})</span>
+                  </div>
+                ` : ''}
+              </div>
+            ` : `
             <form id="submission-form-${q.question_id}" onsubmit="handleQuestionSubmit(event, ${q.question_id})" style="margin-top: 0.75rem; display: ${q.submission_id ? 'none' : 'block'};">
               <div class="form-group">
                 <label style="font-weight: 600; font-size: 0.85rem;">Solution Content (Paste Text/Code or Upload File)</label>
@@ -236,7 +261,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                   </button>
                 </div>
               </div>
-            </form>
+            </form>`}
           </div>
           ` : ''}
 
@@ -805,14 +830,109 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
+  // ─── Question Type Toggle ───
+  window.setQuestionType = (type) => {
+    const isCoding = type === 'coding';
+    const currentIsCoding = document.getElementById('q-is-coding').value === '1';
+
+    document.getElementById('q-is-coding').value = isCoding ? '1' : '0';
+    document.getElementById('type-toggle-regular').classList.toggle('q-type-active', !isCoding);
+    document.getElementById('type-toggle-coding').classList.toggle('q-type-active', isCoding);
+    document.getElementById('coding-fields').style.display = isCoding ? 'block' : 'none';
+    document.getElementById('regular-answer-key').style.display = isCoding ? 'none' : 'block';
+
+    // Only add an initial empty test case if switching TO coding and list is empty
+    if (isCoding && !currentIsCoding && pendingTestCases.length === 0) {
+      pendingTestCases = [{ input_data: '', expected_output: '', is_hidden: false, points: 1 }];
+      renderPendingTestCases();
+    }
+  };
+
+  // ─── Test Cases (client-side before question is saved) ───
+  let pendingTestCases = [];
+
+  document.getElementById('add-test-case-btn').onclick = () => {
+    syncTestCasesFromDOM();
+    pendingTestCases.push({ input_data: '', expected_output: '', is_hidden: false, points: 1 });
+    renderPendingTestCases();
+  };
+
+  const renderPendingTestCases = () => {
+    const container = document.getElementById('test-cases-container');
+    if (pendingTestCases.length === 0) {
+      container.innerHTML = '<p style="font-size: 0.82rem; color: var(--text-muted); text-align: center; padding: 0.5rem;">No test cases yet. Add at least one to enable auto-evaluation.</p>';
+      return;
+    }
+    container.innerHTML = pendingTestCases.map((tc, idx) => `
+      <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem; margin-bottom: 0.5rem;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+          <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted);">Test Case #${idx + 1}</span>
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <label style="display:flex; align-items:center; gap:0.3rem; font-size:0.75rem; cursor:pointer;">
+              <input type="checkbox" ${tc.is_hidden ? 'checked' : ''} oninput="pendingTestCases[${idx}].is_hidden = this.checked"> Hidden
+            </label>
+            <input type="number" value="${tc.points}" min="1" style="width:50px; font-size:0.75rem; padding:0.2rem 0.4rem; border:1px solid var(--border-color); border-radius:4px; background:var(--input-bg); color:var(--text-main);" oninput="pendingTestCases[${idx}].points = parseInt(this.value)||1" title="Points">
+            <button type="button" onclick="deleteTestCase(${idx})" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:0.85rem;"><i class="fa-solid fa-trash"></i></button>
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+          <div>
+            <label style="font-size:0.72rem; font-weight:600; color:var(--text-muted); display:block; margin-bottom:0.2rem;">Input (stdin)</label>
+            <textarea id="tc-input-${idx}" style="width:100%; height:55px; font-family:monospace; font-size:0.78rem; resize:vertical; padding:0.35rem; border:1px solid var(--border-color); border-radius:6px; background:var(--input-bg); color:var(--text-main);" placeholder="5\n1 2 3 4 5" oninput="pendingTestCases[${idx}].input_data = this.value">${escapeHtml(tc.input_data || '')}</textarea>
+          </div>
+          <div>
+            <label style="font-size:0.72rem; font-weight:600; color:var(--text-muted); display:block; margin-bottom:0.2rem;">Expected Output *</label>
+            <textarea id="tc-output-${idx}" style="width:100%; height:55px; font-family:monospace; font-size:0.78rem; resize:vertical; padding:0.35rem; border:1px solid var(--border-color); border-radius:6px; background:var(--input-bg); color:var(--text-main);" placeholder="15" oninput="pendingTestCases[${idx}].expected_output = this.value">${escapeHtml(tc.expected_output || '')}</textarea>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  };
+
+  // Sync current DOM textarea values → pendingTestCases array (before submit or delete)
+  const syncTestCasesFromDOM = () => {
+    pendingTestCases.forEach((tc, idx) => {
+      const inputEl  = document.getElementById(`tc-input-${idx}`);
+      const outputEl = document.getElementById(`tc-output-${idx}`);
+      if (inputEl)  tc.input_data      = inputEl.value;
+      if (outputEl) tc.expected_output = outputEl.value;
+    });
+  };
+  window.syncTestCasesFromDOM = syncTestCasesFromDOM;
+
+  // Expose deleteTestCase on window so inline onclick can reach it
+  window.deleteTestCase = (idx) => {
+    syncTestCasesFromDOM();
+    pendingTestCases.splice(idx, 1);
+    renderPendingTestCases();
+  };
+  window.renderPendingTestCases = renderPendingTestCases;
+
+  // ─── Add Question Form Submit ───
   document.getElementById('add-q-form').onsubmit = async (e) => {
     e.preventDefault();
     const qText = document.getElementById('q-text').value.trim();
+    const isCoding = document.getElementById('q-is-coding').value === '1';
     const errorBox = document.getElementById('add-q-error');
     errorBox.style.display = 'none';
 
     if (!qText) {
       errorBox.textContent = 'Question Prompt is required.';
+      errorBox.style.display = 'block';
+      return;
+    }
+
+    // Sync DOM values → array BEFORE validation
+    if (isCoding) syncTestCasesFromDOM();
+
+    if (isCoding && pendingTestCases.length === 0) {
+      errorBox.textContent = 'Please add at least one test case for a coding question.';
+      errorBox.style.display = 'block';
+      return;
+    }
+
+    if (isCoding && pendingTestCases.some(tc => !tc.expected_output || !tc.expected_output.trim())) {
+      errorBox.textContent = 'All test cases must have an expected output.';
       errorBox.style.display = 'block';
       return;
     }
@@ -828,38 +948,406 @@ document.addEventListener('DOMContentLoaded', async () => {
         questionDataUrl = qUploaded.url;
       }
 
-      const qAnsFile = document.getElementById('q-ans-file-picker')?.files[0];
-      if (qAnsFile && !answerFileUrl) {
-        showToast(`Uploading answer key attachment ${qAnsFile.name}...`, 'info');
-        const ansUploaded = await uploadFileHelper(qAnsFile);
-        answerFileUrl = ansUploaded.url;
-      }
+      const payload = {
+        question_text: qText,
+        question_data: questionDataUrl,
+        points: document.getElementById('q-points').value,
+      };
 
-      await apiFetch(editingQuestionId ? `/questions/${editingQuestionId}` : `/homework/${homeworkId}/questions`, {
-        method: editingQuestionId ? 'PUT' : 'POST',
-        body: JSON.stringify({
+      if (isCoding) {
+        Object.assign(payload, {
+          is_coding_question: true,
+          question_type: 'text',  // ENUM doesn't have 'coding'; use is_coding_question flag instead
+          coding_language: 'c',
+          time_limit_seconds: parseFloat(document.getElementById('q-time-limit').value) || 2,
+          memory_limit_mb: parseInt(document.getElementById('q-memory').value) || 128,
+          starter_code: document.getElementById('q-starter').value || null,
+          required_function_signature: document.getElementById('q-func-sig').value || null,
+        });
+      } else {
+        const qAnsFile = document.getElementById('q-ans-file-picker')?.files[0];
+        if (qAnsFile && !answerFileUrl) {
+          const ansUploaded = await uploadFileHelper(qAnsFile);
+          answerFileUrl = ansUploaded.url;
+        }
+        Object.assign(payload, {
           question_type: 'text',
-          question_text: qText,
-          question_data: questionDataUrl,
-          points: document.getElementById('q-points').value,
-          // order_number: removed for drag-drop
           answer_text: document.getElementById('q-ans-text').value,
           answer_file_url: answerFileUrl
-        })
+        });
+      }
+
+      const res = await apiFetch(editingQuestionId ? `/questions/${editingQuestionId}` : `/homework/${homeworkId}/questions`, {
+        method: editingQuestionId ? 'PUT' : 'POST',
+        body: JSON.stringify(payload)
       });
+
+      const questionId = res.data?.question_id || editingQuestionId;
+
+      // Save test cases if coding question (new question or edit)
+      if (isCoding && questionId) {
+        if (!editingQuestionId) {
+          for (let i = 0; i < pendingTestCases.length; i++) {
+            const tc = pendingTestCases[i];
+            await apiFetch(`/questions/${questionId}/test-cases`, {
+              method: 'POST',
+              body: JSON.stringify({ ...tc, order_number: i + 1 })
+            });
+          }
+        } else {
+          // Edit existing question test cases
+          try {
+            const existingRes = await apiFetch(`/questions/${questionId}/test-cases`);
+            const existingTcs = existingRes.data || [];
+            const existingIds = new Set(existingTcs.map(tc => tc.test_case_id));
+            const updatedIds = new Set();
+
+            for (let i = 0; i < pendingTestCases.length; i++) {
+              const tc = pendingTestCases[i];
+              if (tc.test_case_id && existingIds.has(tc.test_case_id)) {
+                updatedIds.add(tc.test_case_id);
+                await apiFetch(`/test-cases/${tc.test_case_id}`, {
+                  method: 'PUT',
+                  body: JSON.stringify({ ...tc, order_number: i + 1 })
+                });
+              } else {
+                await apiFetch(`/questions/${questionId}/test-cases`, {
+                  method: 'POST',
+                  body: JSON.stringify({ ...tc, order_number: i + 1 })
+                });
+              }
+            }
+
+            for (const tc of existingTcs) {
+              if (!updatedIds.has(tc.test_case_id)) {
+                await apiFetch(`/test-cases/${tc.test_case_id}`, { method: 'DELETE' });
+              }
+            }
+          } catch (tcEditErr) {
+            console.error('Error updating test cases during edit:', tcEditErr);
+          }
+        }
+      }
+
       addQModal.classList.remove('active');
       document.getElementById('add-q-form').reset();
+      pendingTestCases = [];
       editingQuestionId = null;
+      setQuestionType('regular');
       document.getElementById('add-q-modal-title').textContent = 'Add Question to Homework';
       document.getElementById('submit-add-q-btn').innerHTML = '<i class="fa-solid fa-check"></i> Add Question';
       clearDropzoneAttachment('q-file-url', 'q-file-status');
       clearDropzoneAttachment('q-ans-file-url', 'q-ans-file-status');
-      showToast('Question added to homework set!', 'success');
+      showToast(isCoding ? 'Coding question created with test cases!' : 'Question added to homework set!', 'success');
       loadHomeworkDetails();
     } catch (err) {
       errorBox.textContent = err.message;
       errorBox.style.display = 'block';
       showToast(err.message, 'error');
+    }
+  };
+
+  // ─── Code Editor Modal ───
+  let activeEditorQuestionId = null;
+  let activeEditorSubmissionId = null;
+
+  window.openCodeEditor = async (questionId) => {
+    const q = homeworkData?.questions?.find(q => Number(q.question_id) === Number(questionId));
+    if (!q) return;
+    activeEditorQuestionId = questionId;
+    activeEditorSubmissionId = q.submission_id || null;
+
+    document.getElementById('editor-question-title').textContent = `Q${(homeworkData.questions.indexOf(q) + 1)}: ${q.question_text.slice(0, 60)}...`;
+    const langSelect = document.getElementById('editor-lang-select');
+    if (langSelect) {
+      langSelect.value = q.coding_language || 'c';
+    }
+    document.getElementById('editor-problem-text').textContent = q.question_text;
+
+    // Starter code or existing submission
+    const editorTextarea = document.getElementById('code-editor-textarea');
+    editorTextarea.value = q.code_content || q.starter_code || '';
+
+    // Tab key support
+    editorTextarea.onkeydown = (e) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = editorTextarea.selectionStart;
+        const end = editorTextarea.selectionEnd;
+        editorTextarea.value = editorTextarea.value.substring(0, start) + '    ' + editorTextarea.value.substring(end);
+        editorTextarea.selectionStart = editorTextarea.selectionEnd = start + 4;
+      }
+    };
+
+    // Load public test cases
+    document.getElementById('run-results-area').style.display = 'none';
+    const sampleContainer = document.getElementById('editor-sample-tests');
+    sampleContainer.innerHTML = '<span style="font-size:0.8rem; color:var(--text-muted);">Loading...</span>';
+    try {
+      const tcRes = await apiFetch(`/questions/${questionId}/test-cases`);
+      const publicTcs = tcRes.data.filter(tc => !tc.is_hidden);
+      if (publicTcs.length === 0) {
+        sampleContainer.innerHTML = '<span style="font-size:0.8rem; color:var(--text-muted);">No public sample test cases.</span>';
+      } else {
+        sampleContainer.innerHTML = publicTcs.map((tc, i) => `
+          <div style="margin-bottom: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; font-size: 0.78rem;">
+            <div style="padding: 0.3rem 0.6rem; background: var(--table-head-bg); font-weight: 700; color: var(--text-muted);">Example ${i + 1}</div>
+            <div style="padding: 0.5rem 0.6rem;">
+              <div style="font-weight:600; margin-bottom:0.2rem;">Input:</div>
+              <pre style="margin:0; font-family:monospace; white-space:pre-wrap; background:var(--bg-body); padding:0.3rem 0.5rem; border-radius:4px;">${escapeHtml(tc.input_data || '(empty)')}</pre>
+              <div style="font-weight:600; margin-top:0.4rem; margin-bottom:0.2rem;">Output:</div>
+              <pre style="margin:0; font-family:monospace; white-space:pre-wrap; background:var(--bg-body); padding:0.3rem 0.5rem; border-radius:4px;">${escapeHtml(tc.expected_output)}</pre>
+            </div>
+          </div>
+        `).join('');
+      }
+    } catch (err) {
+      sampleContainer.innerHTML = `<span style="font-size:0.8rem; color:var(--text-muted);">Could not load sample tests: ${err.message}</span>`;
+    }
+
+    document.getElementById('code-editor-modal').classList.add('active');
+  };
+
+  document.getElementById('close-code-editor-modal').onclick = () => {
+    document.getElementById('code-editor-modal').classList.remove('active');
+  };
+
+  // Run against public tests only
+  document.getElementById('run-code-btn').onclick = async () => {
+    if (!activeEditorQuestionId) return;
+    const code = document.getElementById('code-editor-textarea').value;
+    const selectedLang = document.getElementById('editor-lang-select')?.value || 'c';
+    const btn = document.getElementById('run-code-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Running...';
+    const runArea = document.getElementById('run-results-area');
+    const runContent = document.getElementById('run-results-content');
+    runArea.style.display = 'block';
+    runContent.innerHTML = '<span style="color:var(--text-muted); font-size:0.85rem;"><i class="fa-solid fa-spinner fa-spin"></i> Running code against public test cases...</span>';
+
+    try {
+      const res = await apiFetch(`/questions/${activeEditorQuestionId}/run-code`, {
+        method: 'POST',
+        body: JSON.stringify({ code, language: selectedLang })
+      });
+      const d = res.data;
+      runContent.innerHTML = `
+        <div style="font-size:0.82rem; margin-bottom:0.5rem;">
+          <strong style="color: ${d.passed === d.total ? '#22c55e' : '#f59e0b'}">
+            ${d.passed === d.total ? '✅' : '⚠️'} ${d.passed}/${d.total} public test cases passed
+          </strong>
+        </div>
+        ${d.results.map((r, i) => `
+          <div style="display:flex; align-items:flex-start; gap:0.4rem; margin-bottom:0.25rem; font-size:0.78rem;">
+            <span>${r.passed ? '✅' : '❌'}</span>
+            <span><strong>Test ${i+1}:</strong> ${r.verdict}
+              ${!r.passed && r.actual !== null ? `<span style="color:var(--text-muted)"> — got: <code>${escapeHtml(r.actual)}</code>, expected: <code>${escapeHtml(r.expected)}</code></span>` : ''}
+              ${r.error ? `<span style="color:var(--status-red)"> — ${escapeHtml(r.error)}</span>` : ''}
+            </span>
+          </div>
+        `).join('')}
+      `;
+    } catch (err) {
+      runContent.innerHTML = `<span style="color:var(--status-red); font-size:0.85rem;">Error: ${err.message}</span>`;
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-play"></i> Run (Public Tests)';
+    }
+  };
+
+  // Submit & Auto-Evaluate
+  document.getElementById('submit-code-btn').onclick = async () => {
+    if (!activeEditorQuestionId) return;
+    const code = document.getElementById('code-editor-textarea').value.trim();
+    if (!code) { showToast('Please write your solution first!', 'error'); return; }
+
+    const selectedLang = document.getElementById('editor-lang-select')?.value || 'c';
+    const btn = document.getElementById('submit-code-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Submitting & Evaluating...';
+
+    try {
+      // 1. Submit
+      const subRes = await apiFetch(`/questions/${activeEditorQuestionId}/submit`, {
+        method: 'POST',
+        body: JSON.stringify({ code_content: code, submission_type: 'text' })
+      });
+      const submissionId = subRes.data.submission_id;
+
+      // 2. Auto-evaluate with student's chosen language
+      const evalRes = await apiFetch(`/submissions/${submissionId}/auto-evaluate`, {
+        method: 'POST',
+        body: JSON.stringify({ language: selectedLang })
+      });
+      const evalData = evalRes.data;
+
+      // 3. Show results
+      document.getElementById('code-editor-modal').classList.remove('active');
+      showAutoEvalResults(evalData);
+      loadHomeworkDetails();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit & Auto-Evaluate';
+    }
+  };
+
+  // ─── Auto-Eval Results Modal ───
+  const showAutoEvalResults = (data) => {
+    const passed = data.passed;
+    const total = data.total;
+    const score = data.auto_score;
+    const pct = data.percent_score || 0;
+
+    const color = pct >= 80 ? '#22c55e' : pct >= 50 ? '#f59e0b' : '#ef4444';
+
+    document.getElementById('auto-eval-summary').innerHTML = `
+      <div style="display:flex; align-items:center; gap:1rem;">
+        <div style="width:72px; height:72px; border-radius:50%; background: conic-gradient(${color} ${pct * 3.6}deg, var(--border-color) 0deg); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+          <div style="width:54px; height:54px; border-radius:50%; background:var(--card-bg); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1rem; color:${color};">${pct.toFixed(0)}%</div>
+        </div>
+        <div>
+          <div style="font-size:1.25rem; font-weight:800; color:${color};">${score} pts auto-scored</div>
+          <div style="font-size:0.85rem; color:var(--text-muted); margin-top:0.2rem;">${passed} of ${total} test cases passed</div>
+          <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.3rem;"><i class="fa-solid fa-clock-rotate-left"></i> Awaiting teacher approval</div>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('auto-eval-results-list').innerHTML = (data.results || []).map((r, i) => `
+      <div style="display:flex; align-items:flex-start; gap:0.6rem; padding:0.6rem 0.75rem; border-radius:8px; border:1px solid var(--border-color); background:${r.passed ? 'rgba(34,197,94,0.04)' : 'rgba(239,68,68,0.04)'}">
+        <span style="font-size:1rem; flex-shrink:0; margin-top:0.1rem;">${r.passed ? '✅' : '❌'}</span>
+        <div style="flex:1; font-size:0.82rem;">
+          <div style="font-weight:700; color:${r.passed ? '#22c55e' : '#ef4444'};">
+            Test ${i+1} ${r.is_hidden ? '<span style="font-size:0.7rem; opacity:0.7;">(Hidden)</span>' : ''} — ${r.verdict}
+          </div>
+          ${!r.is_hidden && !r.passed && r.actual !== null ? `
+            <div style="color:var(--text-muted); margin-top:0.2rem;">
+              Expected: <code style="background:var(--table-head-bg); padding:0.1rem 0.3rem; border-radius:3px;">${escapeHtml(r.expected || '')}</code>
+              &nbsp;Got: <code style="background:var(--table-head-bg); padding:0.1rem 0.3rem; border-radius:3px;">${escapeHtml(r.actual || '')}</code>
+            </div>` : ''}
+          ${r.error ? `<div style="color:var(--status-red); margin-top:0.2rem; font-family:monospace; font-size:0.75rem;">${escapeHtml(r.error)}</div>` : ''}
+          ${r.passed ? `<div style="color:var(--text-muted); font-size:0.75rem; margin-top:0.1rem;">+${r.earned} pts</div>` : ''}
+        </div>
+      </div>
+    `).join('');
+
+    document.getElementById('auto-eval-modal').classList.add('active');
+  };
+
+  document.getElementById('close-auto-eval-modal').onclick = () => {
+    document.getElementById('auto-eval-modal').classList.remove('active');
+  };
+
+  // ─── Teacher Approval Modal ───
+  let activeApprovalSubmissionId = null;
+
+  window.openApprovalModal = async (submissionId) => {
+    activeApprovalSubmissionId = submissionId;
+    document.getElementById('approval-feedback').value = '';
+    document.getElementById('override-score-input').value = '';
+    document.getElementById('approval-eval-banner').innerHTML = '<span style="color:var(--text-muted); font-size:0.85rem;"><i class="fa-solid fa-spinner fa-spin"></i> Loading...</span>';
+    document.getElementById('approval-test-results').innerHTML = '';
+    document.getElementById('approval-code-view').textContent = 'Loading...';
+    document.getElementById('approval-learner-info').textContent = 'Loading...';
+    document.getElementById('approval-modal').classList.add('active');
+
+    try {
+      const res = await apiFetch(`/submissions/${submissionId}`);
+      const sub = res.data;
+      document.getElementById('approval-learner-info').innerHTML = `
+        <strong>${sub.learner_name}</strong> &nbsp;·&nbsp; ${sub.learner_email}
+        &nbsp;·&nbsp; Submitted: ${formatDate(sub.submitted_at)}
+        ${sub.is_late ? '<span class="badge badge-yellow" style="margin-left:0.4rem;">LATE</span>' : ''}
+      `;
+      document.getElementById('approval-code-view').innerHTML = sub.code_content
+        ? renderCodeWithLineNumbers(sub.code_content)
+        : (sub.file_url ? `<a href="${sub.file_url}" target="_blank" class="btn btn-outline btn-sm">Open file</a>` : 'No content');
+
+      // Auto eval results
+      const autoScore = sub.auto_eval_score;
+      const evalResults = sub.auto_eval_results ? (typeof sub.auto_eval_results === 'string' ? JSON.parse(sub.auto_eval_results) : sub.auto_eval_results) : null;
+
+      if (evalResults) {
+        const pct = evalResults.percentScore || 0;
+        const col = pct >= 80 ? '#22c55e' : pct >= 50 ? '#f59e0b' : '#ef4444';
+        document.getElementById('approval-eval-banner').innerHTML = `
+          <div style="display:flex; align-items:center; gap:1rem;">
+            <div style="font-size:1.5rem; font-weight:800; color:${col};">${autoScore} pts</div>
+            <div>
+              <div style="font-size:0.85rem; font-weight:700; color:${col};">🤖 Auto Score: ${evalResults.passed}/${evalResults.total} test cases passed (${pct.toFixed(1)}%)</div>
+              <div style="font-size:0.78rem; color:var(--text-muted); margin-top:0.1rem;">Approve to finalize, or override with a custom score</div>
+            </div>
+          </div>
+        `;
+        document.getElementById('override-score-input').value = autoScore;
+
+        document.getElementById('approval-test-results').innerHTML = `
+          <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; color:var(--text-muted); margin-bottom:0.4rem;"><i class="fa-solid fa-flask-vial"></i> Test Case Results</div>
+          <div style="display:flex; flex-direction:column; gap:0.35rem;">
+            ${(evalResults.results || []).map((r, i) => `
+              <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; padding:0.4rem 0.6rem; border-radius:6px; border:1px solid var(--border-color); background:${r.passed ? 'rgba(34,197,94,0.04)' : 'rgba(239,68,68,0.04)'}">
+                <span>${r.passed ? '✅' : '❌'}</span>
+                <span style="font-weight:600;">Test ${i+1} ${r.is_hidden ? '(Hidden)' : ''}</span>
+                <span style="color:var(--text-muted);">— ${r.verdict}</span>
+                ${!r.passed && r.actual !== null ? `<span style="color:var(--text-muted);">Expected: <code>${escapeHtml(r.expected||'')}</code> Got: <code>${escapeHtml(r.actual||'')}</code></span>` : ''}
+                <span style="margin-left:auto; font-weight:700; color:${r.passed?'#22c55e':'#ef4444'};">${r.passed?`+${r.earned}`:0} pts</span>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      } else {
+        document.getElementById('approval-eval-banner').innerHTML = '<span style="color:var(--text-muted); font-size:0.85rem;">No auto-evaluation data available. Run evaluation first.</span>';
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  document.getElementById('close-approval-modal').onclick = () => document.getElementById('approval-modal').classList.remove('active');
+
+  document.getElementById('approve-grade-btn').onclick = async () => {
+    if (!activeApprovalSubmissionId) return;
+    const btn = document.getElementById('approve-grade-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Approving...';
+    try {
+      const feedback = document.getElementById('approval-feedback').value;
+      await apiFetch(`/submissions/${activeApprovalSubmissionId}/approve-grade`, {
+        method: 'POST',
+        body: JSON.stringify({ feedback })
+      });
+      document.getElementById('approval-modal').classList.remove('active');
+      showToast('✅ Grade approved and student notified!', 'success');
+      loadHomeworkDetails();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-circle-check"></i> Approve Auto Score';
+    }
+  };
+
+  document.getElementById('override-grade-btn').onclick = async () => {
+    if (!activeApprovalSubmissionId) return;
+    const score = document.getElementById('override-score-input').value;
+    if (!score) { showToast('Enter a score to override', 'error'); return; }
+    const btn = document.getElementById('override-grade-btn');
+    btn.disabled = true;
+    try {
+      const feedback = document.getElementById('approval-feedback').value;
+      await apiFetch(`/submissions/${activeApprovalSubmissionId}/override-grade`, {
+        method: 'POST',
+        body: JSON.stringify({ score: parseFloat(score), feedback })
+      });
+      document.getElementById('approval-modal').classList.remove('active');
+      showToast('✅ Grade overridden and student notified!', 'success');
+      loadHomeworkDetails();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
     }
   };
 

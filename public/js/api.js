@@ -48,7 +48,7 @@ function getActiveUserId() {
       if (u && u.user_id) return u.user_id;
     }
   } catch (e) {}
-  return localStorage.getItem('classsync_user_id') || '1';
+  return localStorage.getItem('classsync_user_id') || null;
 }
 
 function setActiveUserId(userId) {
@@ -59,6 +59,7 @@ function setActiveUserId(userId) {
 function logout() {
   localStorage.removeItem('classsync_token');
   localStorage.removeItem('classsync_user');
+  localStorage.removeItem('classsync_user_id');
   window.location.href = '/login.html';
 }
 
@@ -71,8 +72,6 @@ async function apiFetch(endpoint, options = {}) {
   const token = getAuthToken();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
-  } else {
-    headers['x-user-id'] = getActiveUserId();
   }
 
   const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -107,6 +106,15 @@ async function apiFetch(endpoint, options = {}) {
   if (!response.ok) {
     if (response.status === 401 && !endpoint.startsWith('/auth/')) {
       localStorage.removeItem('classsync_token');
+      localStorage.removeItem('classsync_user');
+      localStorage.removeItem('classsync_user_id');
+
+      const currentPath = window.location.pathname;
+      const isPublicPage = ['/login.html', '/register.html', '/verify-otp.html', '/forgot-password.html', '/reset-password.html', '/index.html', '/'].includes(currentPath);
+      if (!isPublicPage) {
+        const redirectUrl = encodeURIComponent(window.location.pathname + window.location.search + window.location.hash);
+        window.location.href = `/login.html?redirect=${redirectUrl}`;
+      }
     }
     throw new Error(data.message || 'An error occurred while processing request');
   }
@@ -186,10 +194,80 @@ function showConfirmModal({ title = 'Confirm Action', message = 'Are you sure yo
   };
 }
 
+// Dynamic Stacked Modal Z-Index Management (Latest opened modal always renders on top)
+let modalZIndexCounter = 10000;
+
+function syncModalZIndex(modalEl) {
+  if (modalEl && modalEl.classList && modalEl.classList.contains('modal')) {
+    if (modalEl.classList.contains('active')) {
+      modalZIndexCounter += 10;
+      modalEl.style.zIndex = modalZIndexCounter;
+    } else {
+      modalEl.style.zIndex = '';
+    }
+  }
+}
+
+if (typeof MutationObserver !== 'undefined') {
+  const modalObserver = new MutationObserver((mutations) => {
+    mutations.forEach(mutation => {
+      if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+        const target = mutation.target;
+        if (target.classList && target.classList.contains('modal')) {
+          syncModalZIndex(target);
+        }
+      }
+    });
+  });
+
+  const setupModalObservers = () => {
+    document.querySelectorAll('.modal').forEach(m => {
+      modalObserver.observe(m, { attributes: true });
+      if (m.classList.contains('active')) syncModalZIndex(m);
+    });
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupModalObservers);
+  } else {
+    setupModalObservers();
+  }
+
+  const bodyObserver = new MutationObserver((mutations) => {
+    mutations.forEach(mutation => {
+      mutation.addedNodes.forEach(node => {
+        if (node.nodeType === 1) {
+          if (node.classList && node.classList.contains('modal')) {
+            modalObserver.observe(node, { attributes: true });
+            if (node.classList.contains('active')) syncModalZIndex(node);
+          }
+          node.querySelectorAll?.('.modal').forEach(m => {
+            modalObserver.observe(m, { attributes: true });
+            if (m.classList.contains('active')) syncModalZIndex(m);
+          });
+        }
+      });
+    });
+  });
+
+  if (document.body) {
+    bodyObserver.observe(document.body, { childList: true, subtree: true });
+  } else {
+    document.addEventListener('DOMContentLoaded', () => {
+      bodyObserver.observe(document.body, { childList: true, subtree: true });
+    });
+  }
+}
+
 // Global Modal Dismissal Listeners (Escape key & Backdrop click)
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
-    document.querySelectorAll('.modal.active').forEach(m => m.classList.remove('active'));
+    const activeModals = Array.from(document.querySelectorAll('.modal.active'));
+    if (activeModals.length > 0) {
+      // Close only the top-most modal on Escape
+      activeModals.sort((a, b) => (parseInt(b.style.zIndex) || 0) - (parseInt(a.style.zIndex) || 0));
+      activeModals[0].classList.remove('active');
+    }
   }
 });
 

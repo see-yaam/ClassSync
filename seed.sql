@@ -1,5 +1,3 @@
-USE `classsync_db`;
-
 -- Seed Users (Default password for all seed test accounts: password123)
 INSERT INTO `users` (`user_id`, `email`, `password_hash`, `full_name`, `profile_picture_url`, `is_verified`) VALUES
 (1, 'alice@uiu.ac.bd', '$2b$10$cjA1I6M4hUiFV.m1shsXP.mrJfmwVqChH8FAu9bj/QBodG2WnOr5O', 'Dr. Alice Smith (Instructor)', 'https://ui-avatars.com/api/?name=Alice+Smith&background=0D8ABC&color=fff', true),

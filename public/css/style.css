@@ -1475,7 +1475,7 @@ th {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  z-index: 9999;
+  z-index: 999999;
   pointer-events: none;
 }
 
@@ -1896,3 +1896,39 @@ th {
   font-weight: 700;
   margin-top: 2px;
 }
+
+/* ===== Auto-Eval: Question Type Toggle Pills ===== */
+.q-type-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1.5px solid var(--border-color);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-muted);
+  background: var(--card-bg);
+  user-select: none;
+}
+
+.q-type-pill:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.q-type-pill.q-type-active {
+  border-color: #6366f1;
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.1);
+  font-weight: 700;
+}
+
+[data-theme="dark"] .q-type-pill.q-type-active {
+  border-color: #818cf8;
+  color: #818cf8;
+  background: rgba(129, 140, 248, 0.12);
+}

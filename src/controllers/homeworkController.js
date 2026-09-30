@@ -226,8 +226,9 @@ const getHomeworkById = async (req, res) => {
 
     // Fetch questions
     const [questions] = await db.query(
-      `SELECT q.*, 
+      `SELECT q.*,
               s.submission_id, s.submission_type, s.submitted_at, s.is_late, s.penalty_applied, s.code_content, s.file_url,
+              s.auto_eval_status, s.auto_eval_score, s.auto_eval_results,
               g.grade_id, g.score, g.feedback, g.is_draft, g.graded_at, g.status
        FROM questions q
        LEFT JOIN submissions s ON q.question_id = s.question_id AND s.learner_id = ?
@@ -262,7 +263,13 @@ const getHomeworkById = async (req, res) => {
 const addQuestion = async (req, res) => {
   try {
     const homeworkId = req.params.id;
-    const { question_type, question_text, question_data, points, order_number, answer_text, answer_file_url } = req.body;
+    const {
+      question_type, question_text, question_data, points, order_number,
+      answer_text, answer_file_url,
+      // Coding question fields
+      is_coding_question, coding_language, coding_language_version,
+      time_limit_seconds, memory_limit_mb, starter_code, required_function_signature
+    } = req.body;
     const userId = req.user.user_id;
 
     const [hw] = await db.query(`SELECT classroom_id FROM homework WHERE homework_id = ?`, [homeworkId]);
@@ -276,15 +283,32 @@ const addQuestion = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Question text is required' });
     }
 
+    // Determine effective question type (must be one of ENUM('link','text','pdf','docx','pptx'))
+    const isCoding = !!is_coding_question;
+    const validTypes = ['link', 'text', 'pdf', 'docx', 'pptx'];
+    const effectiveType = validTypes.includes(question_type) ? question_type : 'text';
+
     const [result] = await db.query(
-      `INSERT INTO questions (homework_id, question_type, question_text, question_data, points, order_number)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [homeworkId, question_type || 'text', question_text, question_data || null, points || 10, order_number || 0]
+      `INSERT INTO questions
+         (homework_id, question_type, question_text, question_data, points, order_number,
+          is_coding_question, coding_language, coding_language_version,
+          time_limit_seconds, memory_limit_mb, starter_code, required_function_signature)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        homeworkId, effectiveType, question_text, question_data || null, points || 10, order_number || 0,
+        isCoding ? 1 : 0,
+        isCoding ? (coding_language || 'python') : null,
+        isCoding ? (coding_language_version || null) : null,
+        isCoding ? (time_limit_seconds || 2.0) : null,
+        isCoding ? (memory_limit_mb || 128) : null,
+        isCoding ? (starter_code || null) : null,
+        isCoding ? (required_function_signature || null) : null
+      ]
     );
 
     const question_id = result.insertId;
 
-    // Optional answer key upload
+    // Optional answer key upload (for non-coding or reference solution)
     if (answer_text || answer_file_url) {
       await db.query(
         `INSERT INTO homework_answers (question_id, instructor_id, answer_text, answer_file_url)
@@ -296,7 +320,7 @@ const addQuestion = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Question added successfully',
-      data: { question_id }
+      data: { question_id, is_coding_question: isCoding }
     });
   } catch (error) {
     console.error('Error adding question:', error);
@@ -308,7 +332,12 @@ const addQuestion = async (req, res) => {
 const updateQuestion = async (req, res) => {
   try {
     const questionId = req.params.id;
-    const { question_type, question_text, question_data, points, order_number, answer_text, answer_file_url } = req.body;
+    const {
+      question_type, question_text, question_data, points, order_number,
+      answer_text, answer_file_url,
+      is_coding_question, coding_language, coding_language_version,
+      time_limit_seconds, memory_limit_mb, starter_code, required_function_signature
+    } = req.body;
     const userId = req.user.user_id;
 
     if (!question_text || !question_text.trim()) {
@@ -316,7 +345,7 @@ const updateQuestion = async (req, res) => {
     }
 
     const [rows] = await db.query(
-      `SELECT q.homework_id, h.classroom_id
+      `SELECT q.homework_id, h.classroom_id, q.is_coding_question
        FROM questions q
        JOIN homework h ON q.homework_id = h.homework_id
        WHERE q.question_id = ? AND h.is_active = true`,
@@ -328,22 +357,40 @@ const updateQuestion = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
-    await db.query(
-      `UPDATE questions
-       SET question_type = ?, question_text = ?, question_data = ?, points = ?, order_number = ?
-       WHERE question_id = ?`,
-      [question_type || 'text', question_text.trim(), question_data || null, points || 10, order_number || 0, questionId]
-    );
+    const isCoding = is_coding_question !== undefined ? !!is_coding_question : !!rows[0].is_coding_question;
+    const validTypes = ['link', 'text', 'pdf', 'docx', 'pptx'];
+    const effectiveType = validTypes.includes(question_type) ? question_type : 'text';
 
     await db.query(
-      `INSERT INTO homework_answers (question_id, instructor_id, answer_text, answer_file_url)
-       VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         instructor_id = VALUES(instructor_id),
-         answer_text = VALUES(answer_text),
-         answer_file_url = VALUES(answer_file_url)`,
-      [questionId, userId, answer_text || null, answer_file_url || null]
+      `UPDATE questions
+       SET question_type = ?, question_text = ?, question_data = ?, points = ?, order_number = ?,
+           is_coding_question = ?, coding_language = ?, coding_language_version = ?,
+           time_limit_seconds = ?, memory_limit_mb = ?, starter_code = ?, required_function_signature = ?
+       WHERE question_id = ?`,
+      [
+        effectiveType, question_text.trim(), question_data || null, points || 10, order_number || 0,
+        isCoding ? 1 : 0,
+        isCoding ? (coding_language || 'python') : null,
+        isCoding ? (coding_language_version || null) : null,
+        isCoding ? (time_limit_seconds || 2.0) : null,
+        isCoding ? (memory_limit_mb || 128) : null,
+        isCoding ? (starter_code || null) : null,
+        isCoding ? (required_function_signature || null) : null,
+        questionId
+      ]
     );
+
+    if (answer_text !== undefined || answer_file_url !== undefined) {
+      await db.query(
+        `INSERT INTO homework_answers (question_id, instructor_id, answer_text, answer_file_url)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           instructor_id = VALUES(instructor_id),
+           answer_text = VALUES(answer_text),
+           answer_file_url = VALUES(answer_file_url)`,
+        [questionId, userId, answer_text || null, answer_file_url || null]
+      );
+    }
 
     res.json({ success: true, message: 'Question updated successfully' });
   } catch (error) {

@@ -10,6 +10,7 @@ DROP TABLE IF EXISTS `homework_answers`;
 DROP TABLE IF EXISTS `code_reviews`;
 DROP TABLE IF EXISTS `grades`;
 DROP TABLE IF EXISTS `submissions`;
+DROP TABLE IF EXISTS `test_cases`;
 DROP TABLE IF EXISTS `questions`;
 DROP TABLE IF EXISTS `homework`;
 DROP TABLE IF EXISTS `enrollment_requests`;
@@ -141,9 +142,29 @@ CREATE TABLE `questions` (
   `question_data` text,
   `points` int DEFAULT 10,
   `order_number` int DEFAULT 0,
+  `is_coding_question` boolean DEFAULT false,
+  `coding_language` varchar(50) DEFAULT 'python',
+  `coding_language_version` varchar(50) DEFAULT NULL,
+  `time_limit_seconds` decimal(4,2) DEFAULT 2.00,
+  `memory_limit_mb` int DEFAULT 128,
+  `starter_code` text DEFAULT NULL,
+  `required_function_signature` varchar(255) DEFAULT NULL,
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (`homework_id`) REFERENCES `homework` (`homework_id`)
+);
+
+CREATE TABLE `test_cases` (
+  `test_case_id` int PRIMARY KEY AUTO_INCREMENT,
+  `question_id` int NOT NULL,
+  `input_data` text,
+  `expected_output` text NOT NULL,
+  `is_hidden` boolean DEFAULT false,
+  `points` int DEFAULT 1,
+  `order_number` int DEFAULT 0,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`question_id`) REFERENCES `questions` (`question_id`) ON DELETE CASCADE
 );
 
 CREATE TABLE `submissions` (
@@ -160,6 +181,10 @@ CREATE TABLE `submissions` (
   `penalty_applied` int DEFAULT 0,
   `is_final` boolean DEFAULT true,
   `submission_metadata` json,
+  `auto_eval_status` enum('none','pending','done','error') DEFAULT 'none',
+  `auto_eval_score` decimal(5,2) DEFAULT NULL,
+  `auto_eval_results` json DEFAULT NULL,
+  `auto_eval_at` timestamp NULL DEFAULT NULL,
   FOREIGN KEY (`question_id`) REFERENCES `questions` (`question_id`),
   FOREIGN KEY (`learner_id`) REFERENCES `users` (`user_id`)
 );
@@ -170,11 +195,17 @@ CREATE TABLE `grades` (
   `instructor_id` int NOT NULL,
   `score` decimal(5,2),
   `feedback` text,
+  `status` varchar(50) DEFAULT 'Accepted',
   `graded_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_draft` boolean DEFAULT false,
+  `approval_status` enum('none','auto_pending','approved','manual') DEFAULT 'none',
+  `auto_score` decimal(5,2) DEFAULT NULL,
+  `approved_at` timestamp NULL DEFAULT NULL,
+  `approved_by` int DEFAULT NULL,
   FOREIGN KEY (`submission_id`) REFERENCES `submissions` (`submission_id`),
-  FOREIGN KEY (`instructor_id`) REFERENCES `users` (`user_id`)
+  FOREIGN KEY (`instructor_id`) REFERENCES `users` (`user_id`),
+  FOREIGN KEY (`approved_by`) REFERENCES `users` (`user_id`)
 );
 
 CREATE TABLE `code_reviews` (

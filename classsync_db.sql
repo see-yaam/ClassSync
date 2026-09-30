@@ -248,7 +248,11 @@ CREATE TABLE `grades` (
   `graded_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `is_draft` tinyint(1) DEFAULT 0,
-  `status` varchar(50) DEFAULT 'Accepted'
+  `status` varchar(50) DEFAULT 'Accepted',
+  `approval_status` enum('none','auto_pending','approved','manual') DEFAULT 'none',
+  `auto_score` decimal(5,2) DEFAULT NULL,
+  `approved_at` timestamp NULL DEFAULT NULL,
+  `approved_by` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -615,8 +619,28 @@ CREATE TABLE `questions` (
   `question_data` text DEFAULT NULL,
   `points` int(11) DEFAULT 10,
   `order_number` int(11) DEFAULT 0,
+  `is_coding_question` tinyint(1) DEFAULT 0,
+  `coding_language` varchar(50) DEFAULT 'python',
+  `coding_language_version` varchar(50) DEFAULT NULL,
+  `time_limit_seconds` decimal(4,2) DEFAULT 2.00,
+  `memory_limit_mb` int(11) DEFAULT 128,
+  `starter_code` text DEFAULT NULL,
+  `required_function_signature` varchar(255) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `test_cases` (
+  `test_case_id` int(11) NOT NULL AUTO_INCREMENT,
+  `question_id` int(11) NOT NULL,
+  `input_data` text DEFAULT NULL,
+  `expected_output` text NOT NULL,
+  `is_hidden` tinyint(1) DEFAULT 0,
+  `points` int(11) DEFAULT 1,
+  `order_number` int(11) DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`test_case_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -688,7 +712,11 @@ CREATE TABLE `submissions` (
   `penalty_applied` int(11) DEFAULT 0,
   `is_final` tinyint(1) DEFAULT 1,
   `submission_metadata` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`submission_metadata`)),
-  `submission_type` enum('text','link','pdf','docx','pptx') NOT NULL DEFAULT 'text'
+  `submission_type` enum('text','link','pdf','docx','pptx') NOT NULL DEFAULT 'text',
+  `auto_eval_status` enum('none','pending','done','error') DEFAULT 'none',
+  `auto_eval_score` decimal(5,2) DEFAULT NULL,
+  `auto_eval_results` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`auto_eval_results`)),
+  `auto_eval_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -890,6 +918,12 @@ ALTER TABLE `problem_answers`
 ALTER TABLE `questions`
   ADD PRIMARY KEY (`question_id`),
   ADD KEY `homework_id` (`homework_id`);
+
+--
+-- Indexes for table `test_cases`
+--
+ALTER TABLE `test_cases`
+  ADD KEY `question_id` (`question_id`);
 
 --
 -- Indexes for table `resources`
@@ -1176,6 +1210,12 @@ ALTER TABLE `problem_answers`
 --
 ALTER TABLE `questions`
   ADD CONSTRAINT `questions_ibfk_1` FOREIGN KEY (`homework_id`) REFERENCES `homework` (`homework_id`);
+
+--
+-- Constraints for table `test_cases`
+--
+ALTER TABLE `test_cases`
+  ADD CONSTRAINT `test_cases_ibfk_1` FOREIGN KEY (`question_id`) REFERENCES `questions` (`question_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `resources`

@@ -1,4 +1,12 @@
 document.addEventListener('DOMContentLoaded', async () => {
+  const token = getAuthToken();
+  if (!token) {
+    showToast('Please log in or register to access this course.', 'warning');
+    const redirectUrl = encodeURIComponent(window.location.pathname + window.location.search + window.location.hash);
+    window.location.href = `/login.html?redirect=${redirectUrl}`;
+    return;
+  }
+
   const urlParams = new URLSearchParams(window.location.search);
   const classroomId = urlParams.get('id');
 
