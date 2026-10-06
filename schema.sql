@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS `user_todos`;
 DROP TABLE IF EXISTS `plagiarism_flags`;
 DROP TABLE IF EXISTS `attendance`;
 DROP TABLE IF EXISTS `live_sessions`;
@@ -366,6 +367,18 @@ CREATE TABLE `plagiarism_flags` (
   FOREIGN KEY (`flagged_by`) REFERENCES `users` (`user_id`),
   FOREIGN KEY (`reviewed_by`) REFERENCES `users` (`user_id`),
   CONSTRAINT `chk_submission_order` CHECK (`submission_id_1` < `submission_id_2`)
+);
+
+CREATE TABLE `user_todos` (
+  `todo_id` int PRIMARY KEY AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `priority` enum('low','medium','high') NOT NULL DEFAULT 'medium',
+  `due_date` date NULL,
+  `completed` boolean DEFAULT false,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
 );
 
 -- Constraints & Unique Indexes

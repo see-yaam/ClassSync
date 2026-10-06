@@ -31,6 +31,7 @@ app.use('/api', require('./routes/plagiarismRoutes'));
 app.use('/api', require('./routes/uploadRoutes'));
 app.use('/api', require('./routes/messageRoutes'));
 app.use('/api', require('./routes/autoEvalRoutes'));
+app.use('/api', require('./routes/dashboardRoutes'));
 app.use('/api', require('./routes/cronRoutes'));
 
 // Fallback to login.html if not authenticated, or index.html for static routes
@@ -95,6 +96,29 @@ const autoInitSchema = async () => {
         await db.query(`ALTER TABLE users MODIFY COLUMN profile_picture_url MEDIUMTEXT`);
       } catch (mErr) {
         // Ignore if already modified
+      }
+
+      // Check if user_todos table exists
+      try {
+        const [todosTable] = await db.query(`SHOW TABLES LIKE 'user_todos'`);
+        if (todosTable.length === 0) {
+          await db.query(`
+            CREATE TABLE \`user_todos\` (
+              \`todo_id\` int PRIMARY KEY AUTO_INCREMENT,
+              \`user_id\` int NOT NULL,
+              \`title\` varchar(255) NOT NULL,
+              \`priority\` enum('low','medium','high') NOT NULL DEFAULT 'medium',
+              \`due_date\` date NULL,
+              \`completed\` boolean DEFAULT false,
+              \`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP,
+              \`updated_at\` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              FOREIGN KEY (\`user_id\`) REFERENCES \`users\` (\`user_id\`) ON DELETE CASCADE
+            )
+          `);
+          console.log('✅ Created "user_todos" table automatically.');
+        }
+      } catch (tErr) {
+        console.warn('user_todos check warning:', tErr.message);
       }
     }
   } catch (err) {

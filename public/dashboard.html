@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - ClassSync</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .dashboard-container {
+      max-width: 1280px;
+      margin: 2rem auto;
+      padding: 0 1.5rem 3rem;
+    }
+
+    .welcome-banner {
+      background: var(--header-bg);
+      color: #ffffff;
+      border-radius: 1rem;
+      padding: 2.2rem;
+      margin-bottom: 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 10px 25px -5px rgba(29, 78, 216, 0.25);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .welcome-banner::after {
+      content: '';
+      position: absolute;
+      right: -30px;
+      bottom: -30px;
+      width: 200px;
+      height: 200px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .user-welcome-info {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+    }
+
+    .welcome-avatar {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid rgba(255, 255, 255, 0.4);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .welcome-text h1 {
+      font-size: 1.85rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 0.25rem;
+    }
+
+    .welcome-text p {
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 0.95rem;
+    }
+
+    .banner-actions {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      z-index: 2;
+    }
+
+    .role-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.85rem;
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(8px);
+      border-radius: 2rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #ffffff;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 0.85rem;
+      padding: 1.4rem;
+      display: flex;
+      align-items: center;
+      gap: 1.2rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+    }
+
+    .stat-icon-wrapper {
+      width: 54px;
+      height: 54px;
+      border-radius: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      flex-shrink: 0;
+    }
+
+    .stat-icon-blue { background: rgba(37, 99, 235, 0.12); color: #2563eb; }
+    .stat-icon-amber { background: rgba(217, 119, 6, 0.12); color: #d97706; }
+    .stat-icon-emerald { background: rgba(5, 150, 105, 0.12); color: #059669; }
+    .stat-icon-purple { background: rgba(147, 51, 234, 0.12); color: #9333ea; }
+
+    .stat-info .stat-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      font-family: var(--font-heading);
+      color: var(--text-main);
+      line-height: 1.2;
+    }
+
+    .stat-info .stat-label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .dashboard-layout {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 1.75rem;
+    }
+
+    @media (max-width: 992px) {
+      .dashboard-layout {
+        grid-template-columns: 1fr;
+      }
+      .welcome-banner {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1.25rem;
+      }
+    }
+
+    .dashboard-section {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 0.85rem;
+      padding: 1.5rem;
+      margin-bottom: 1.75rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04);
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .section-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .section-title i {
+      color: var(--primary-color);
+    }
+
+    .classrooms-mini-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1rem;
+    }
+
+    .classroom-mini-card {
+      background: var(--bg-color);
+      border: 1px solid var(--border-color);
+      border-radius: 0.75rem;
+      padding: 1.1rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .classroom-mini-card:hover {
+      border-color: var(--primary-color);
+      transform: translateY(-2px);
+    }
+
+    .mini-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.6rem;
+    }
+
+    .mini-card-title {
+      font-weight: 700;
+      font-size: 1.05rem;
+      color: var(--text-main);
+      text-decoration: none;
+    }
+
+    .mini-card-title:hover {
+      color: var(--primary-color);
+    }
+
+    .mini-card-code {
+      font-size: 0.75rem;
+      background: var(--sidebar-active-bg);
+      color: var(--primary-color);
+      padding: 0.2rem 0.5rem;
+      border-radius: 0.4rem;
+      font-weight: 600;
+    }
+
+    .mini-card-meta {
+      font-size: 0.825rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .homework-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.9rem 1rem;
+      background: var(--bg-color);
+      border: 1px solid var(--border-color);
+      border-radius: 0.65rem;
+      margin-bottom: 0.75rem;
+      transition: background-color 0.2s;
+    }
+
+    .homework-item:hover {
+      background: var(--sidebar-active-bg);
+    }
+
+    .hw-left {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+    }
+
+    .hw-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 0.5rem;
+      background: rgba(37, 99, 235, 0.1);
+      color: var(--primary-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+    }
+
+    .hw-details strong {
+      display: block;
+      font-size: 0.95rem;
+      color: var(--text-main);
+    }
+
+    .hw-details span {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .countdown-pill {
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 0.3rem 0.65rem;
+      border-radius: 1rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .countdown-urgent {
+      background: rgba(220, 38, 38, 0.12);
+      color: var(--status-red);
+    }
+
+    .countdown-normal {
+      background: rgba(217, 119, 6, 0.12);
+      color: var(--status-orange);
+    }
+
+    /* To-Do Widget Styling */
+    .todo-list-container {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      margin-top: 1rem;
+    }
+
+    .todo-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 0.85rem;
+      background: var(--bg-color);
+      border: 1px solid var(--border-color);
+      border-radius: 0.6rem;
+      transition: border-color 0.2s;
+    }
+
+    .todo-item.completed span {
+      text-decoration: line-through;
+      color: var(--text-muted);
+      opacity: 0.7;
+    }
+
+    .todo-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex: 1;
+    }
+
+    .todo-checkbox {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: var(--primary-color);
+    }
+
+    .todo-text {
+      font-size: 0.9rem;
+      color: var(--text-main);
+      word-break: break-word;
+    }
+
+    .priority-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 0.4rem;
+    }
+
+    .priority-high { background-color: var(--status-red); }
+    .priority-medium { background-color: var(--status-orange); }
+    .priority-low { background-color: var(--status-green); }
+
+    .todo-add-box {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .todo-add-input {
+      flex: 1;
+      padding: 0.5rem 0.85rem;
+      font-size: 0.875rem;
+      border: 1px solid var(--border-color);
+      border-radius: 0.5rem;
+      background: var(--input-bg);
+      color: var(--text-main);
+    }
+
+    .todo-add-input:focus {
+      outline: none;
+      border-color: var(--primary-color);
+    }
+
+    .todo-priority-select {
+      padding: 0.5rem;
+      font-size: 0.85rem;
+      border: 1px solid var(--border-color);
+      border-radius: 0.5rem;
+      background: var(--input-bg);
+      color: var(--text-main);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 2rem 1rem;
+      color: var(--text-muted);
+    }
+
+    .empty-state i {
+      font-size: 2.2rem;
+      margin-bottom: 0.6rem;
+      opacity: 0.5;
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 8px;
+      background: var(--border-color);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 0.5rem;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--primary-color);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+  </style>
+</head>
+<body>
+  <!-- Global Navbar -->
+  <div id="navbar-container"></div>
+
+  <main class="dashboard-container">
+    <!-- Welcome Header Banner -->
+    <div class="welcome-banner">
+      <div class="user-welcome-info">
+        <img id="dash-user-avatar" src="https://ui-avatars.com/api/?name=User&background=2563eb&color=fff" alt="Avatar" class="welcome-avatar">
+        <div class="welcome-text">
+          <h1 id="dash-user-greeting">Welcome back!</h1>
+          <p id="dash-sub-greeting">Here is your academic overview for today.</p>
+        </div>
+      </div>
+      <div class="banner-actions">
+        <span class="role-badge" id="dash-role-badge"><i class="fa-solid fa-graduation-cap"></i> Learner</span>
+        <a href="/index.html" class="btn btn-light btn-sm" style="background: rgba(255,255,255,0.9); color: #1e3a8a; border: none; font-weight: 600;">
+          <i class="fa-solid fa-compass"></i> Explore Classes
+        </a>
+      </div>
+    </div>
+
+    <!-- Quick Stats Cards Row -->
+    <div class="stats-grid" id="stats-grid">
+      <!-- Stat 1 -->
+      <div class="stat-card">
+        <div class="stat-icon-wrapper stat-icon-blue">
+          <i class="fa-solid fa-chalkboard-user"></i>
+        </div>
+        <div class="stat-info">
+          <div class="stat-value" id="stat-classrooms-count">-</div>
+          <div class="stat-label" id="stat-classrooms-label">Enrolled Classrooms</div>
+        </div>
+      </div>
+
+      <!-- Stat 2 -->
+      <div class="stat-card">
+        <div class="stat-icon-wrapper stat-icon-amber">
+          <i class="fa-solid fa-clock"></i>
+        </div>
+        <div class="stat-info">
+          <div class="stat-value" id="stat-pending-count">-</div>
+          <div class="stat-label" id="stat-pending-label">Upcoming Deadlines</div>
+        </div>
+      </div>
+
+      <!-- Stat 3 -->
+      <div class="stat-card">
+        <div class="stat-icon-wrapper stat-icon-emerald">
+          <i class="fa-solid fa-file-check"></i>
+        </div>
+        <div class="stat-info">
+          <div class="stat-value" id="stat-submitted-count">-</div>
+          <div class="stat-label" id="stat-submitted-label">Submissions</div>
+        </div>
+      </div>
+
+      <!-- Stat 4 -->
+      <div class="stat-card">
+        <div class="stat-icon-wrapper stat-icon-purple">
+          <i class="fa-solid fa-chart-pie"></i>
+        </div>
+        <div class="stat-info">
+          <div class="stat-value" id="stat-grade-count">-</div>
+          <div class="stat-label" id="stat-grade-label">Average Grade</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Dashboard Two-Column Layout -->
+    <div class="dashboard-layout">
+      <!-- Left Column: Classrooms & Academic Work -->
+      <div class="dash-main-col">
+        <!-- Section 1: Active Classrooms -->
+        <div class="dashboard-section">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fa-solid fa-school"></i> <span id="classrooms-section-title">My Classrooms</span>
+            </div>
+            <a href="/index.html" class="btn btn-outline btn-sm">View All</a>
+          </div>
+          <div class="classrooms-mini-grid" id="classrooms-grid">
+            <div class="empty-state">
+              <i class="fa-solid fa-spinner fa-spin"></i>
+              <p>Loading your classrooms...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: Upcoming Homeworks & Deadlines -->
+        <div class="dashboard-section">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fa-solid fa-hourglass-half"></i> <span id="homework-section-title">Upcoming Homework & Deadlines</span>
+            </div>
+          </div>
+          <div id="homework-list-container">
+            <div class="empty-state">
+              <i class="fa-solid fa-spinner fa-spin"></i>
+              <p>Loading deadlines...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 3: Recent Submissions / Grading Queue -->
+        <div class="dashboard-section">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fa-solid fa-award"></i> <span id="submissions-section-title">Recent Submissions & Grades</span>
+            </div>
+          </div>
+          <div id="submissions-list-container">
+            <div class="empty-state">
+              <i class="fa-solid fa-spinner fa-spin"></i>
+              <p>Loading submission activity...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Sidebar Column: To-Do Widget & Live Sessions -->
+      <div class="dash-side-col">
+        <!-- Live Sessions Widget -->
+        <div class="dashboard-section" id="live-sessions-widget">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fa-solid fa-video"></i> Live Classes
+            </div>
+          </div>
+          <div id="live-sessions-container">
+            <div class="empty-state">
+              <p style="font-size: 0.85rem;">No active live sessions right now.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Personal To-Do Widget -->
+        <div class="dashboard-section">
+          <div class="section-header" style="margin-bottom: 0.85rem;">
+            <div class="section-title">
+              <i class="fa-solid fa-list-check"></i> Personal Tasks
+            </div>
+            <span class="badge" id="todo-count-badge" style="background: var(--sidebar-active-bg); color: var(--primary-color);">0/0</span>
+          </div>
+
+          <!-- Add Task Input Form -->
+          <form id="todo-add-form" class="todo-add-box" onsubmit="handleAddTodo(event)">
+            <input type="text" id="todo-input-title" class="todo-add-input" placeholder="Add a new task..." required>
+            <select id="todo-input-priority" class="todo-priority-select">
+              <option value="low">Low</option>
+              <option value="medium" selected>Med</option>
+              <option value="high">High</option>
+            </select>
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus"></i></button>
+          </form>
+
+          <!-- Task Progress Bar -->
+          <div style="margin-bottom: 1rem;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-muted);">
+              <span>Progress</span>
+              <span id="todo-progress-percent">0%</span>
+            </div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" id="todo-progress-fill" style="width: 0%;"></div>
+            </div>
+          </div>
+
+          <!-- Task List items -->
+          <div class="todo-list-container" id="todo-list-container">
+            <div class="empty-state" style="padding: 1rem;">
+              <p style="font-size: 0.85rem;">No tasks yet. Add one above!</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/navbar.js"></script>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>
