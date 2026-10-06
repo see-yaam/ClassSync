@@ -19,7 +19,7 @@ const getLearnerDashboard = async (req, res) => {
     // 2. Submissions Matrix with Scores and Feedback
     const [submissions] = await db.query(
       `SELECT 
-         s.submission_id, s.submitted_at, s.status AS submission_status,
+         s.submission_id, s.submitted_at, s.auto_eval_status AS submission_status,
          q.question_id, q.question_text, q.points AS max_points,
          h.homework_id, h.title AS homework_title, h.deadline,
          c.classroom_id, c.classroom_name,
@@ -30,7 +30,7 @@ const getLearnerDashboard = async (req, res) => {
        JOIN homework h ON q.homework_id = h.homework_id
        JOIN classrooms c ON h.classroom_id = c.classroom_id
        LEFT JOIN grades g ON s.submission_id = g.submission_id
-       LEFT JOIN users u_inst ON g.graded_by = u_inst.user_id
+       LEFT JOIN users u_inst ON g.instructor_id = u_inst.user_id
        WHERE s.learner_id = ?
        ORDER BY s.submitted_at DESC`,
       [userId]
@@ -116,7 +116,7 @@ const getInstructorDashboard = async (req, res) => {
       // 2. Master Pending Grading Queue
       const [pending] = await db.query(
         `SELECT 
-           s.submission_id, s.submitted_at, s.status,
+           s.submission_id, s.submitted_at, s.auto_eval_status,
            q.question_id, q.question_text, q.points AS max_points,
            h.homework_id, h.title AS homework_title,
            c.classroom_id, c.classroom_name,
