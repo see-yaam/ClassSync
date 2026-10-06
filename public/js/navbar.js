@@ -200,6 +200,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const markAllBtn = document.getElementById('mark-all-read-btn');
 
     const loadNotifications = async () => {
+      if (!getAuthToken()) return;
       try {
         const res = await apiFetch('/me/notifications');
         if (res.unreadCount > 0) {
