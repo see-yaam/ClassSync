@@ -3,6 +3,10 @@ let currentView = 'learner';
 let agendaEvents = [];
 let userClassroomsList = [];
 
+// Calendar state
+let currentDate = new Date();
+let selectedDateStr = null; // YYYY-MM-DD
+
 document.addEventListener('DOMContentLoaded', async () => {
   const token = getAuthToken();
   if (!token) {
@@ -40,6 +44,10 @@ function switchDashboardView(viewName) {
   document.querySelectorAll('.dashboard-view-section').forEach(sec => sec.style.display = 'none');
   const activeSec = document.getElementById(`view-${viewName}`);
   if (activeSec) activeSec.style.display = 'block';
+
+  if (viewName === 'calendar') {
+    renderMonthGrid();
+  }
 }
 
 // ------------------------------------------------------------------
@@ -62,7 +70,7 @@ async function loadLearnerDashboard() {
     document.getElementById('learner-stat-warnings').textContent = data.stats.activeWarningsCount || 0;
 
     // Cache user classrooms for To-Do modal select
-    data.enrolledClassrooms.forEach(c => {
+    (data.enrolledClassrooms || []).forEach(c => {
       if (!userClassroomsList.some(item => item.classroom_id === c.classroom_id)) {
         userClassroomsList.push(c);
       }
@@ -90,7 +98,7 @@ async function loadLearnerDashboard() {
             </td>
             <td>
               <div><strong>${escapeHtml(sub.homework_title)}</strong></div>
-              <small class="text-muted">${escapeHtml(sub.question_title)}</small>
+              <small class="text-muted">${escapeHtml(sub.question_text || 'Question')}</small>
             </td>
             <td>${submittedDate}</td>
             <td>${scoreDisplay}</td>
@@ -119,7 +127,7 @@ async function loadLearnerDashboard() {
           <tr>
             <td>${severityBadge}</td>
             <td><strong>${escapeHtml(alt.classroom_name)}</strong></td>
-            <td>${escapeHtml(alt.instructor_name)}</td>
+            <td>${escapeHtml(alt.instructor_name || 'Instructor')}</td>
             <td>${escapeHtml(alt.alert_message)}</td>
             <td>${new Date(alt.created_at).toLocaleDateString()}</td>
             <td>${statusStr}</td>
@@ -144,10 +152,10 @@ async function loadLearnerDashboard() {
         <div class="card p-3 d-flex flex-column justify-content-between" style="border-radius:14px;">
           <div>
             <div class="d-flex justify-content-between align-items-start mb-2">
-              <h3 class="font-bold text-lg" style="margin:0;"><i class="fa-solid fa-book-bookmark text-primary me-2"></i>${escapeHtml(c.name)}</h3>
-              <span class="badge badge-info">${escapeHtml(c.code)}</span>
+              <h3 class="font-bold text-lg" style="margin:0;"><i class="fa-solid fa-book-bookmark text-primary me-2"></i>${escapeHtml(c.classroom_name)}</h3>
+              <span class="badge badge-info">${escapeHtml(c.room_number)}</span>
             </div>
-            <p class="text-secondary text-sm mb-2">${escapeHtml(c.subject || 'General')}</p>
+            <p class="text-secondary text-sm mb-2">${escapeHtml(c.description || 'Classroom')}</p>
             <p class="text-muted text-xs mb-3"><i class="fa-solid fa-user-tie me-1"></i> ${escapeHtml(c.instructor_name || 'Instructor')}</p>
           </div>
           <a href="/classroom.html?id=${c.classroom_id}" class="btn btn-outline btn-sm w-full mt-2">
@@ -182,7 +190,7 @@ async function loadInstructorDashboard() {
     document.getElementById('instructor-stat-plagiarism').textContent = data.stats.unreviewedPlagiarismCount || 0;
 
     // Cache instructor classrooms for To-Do modal select
-    data.createdClassrooms.forEach(c => {
+    (data.createdClassrooms || []).forEach(c => {
       if (!userClassroomsList.some(item => item.classroom_id === c.classroom_id)) {
         userClassroomsList.push(c);
       }
@@ -198,7 +206,7 @@ async function loadInstructorDashboard() {
           <td><strong>${escapeHtml(item.classroom_name)}</strong></td>
           <td>
             <div><strong>${escapeHtml(item.homework_title)}</strong></div>
-            <small class="text-muted">${escapeHtml(item.question_title)}</small>
+            <small class="text-muted">${escapeHtml(item.question_text || 'Question')}</small>
           </td>
           <td>
             <div><strong>${escapeHtml(item.learner_name)}</strong></div>
@@ -226,8 +234,11 @@ async function loadInstructorDashboard() {
             <div><strong>${escapeHtml(req.learner_name)}</strong></div>
             <small class="text-muted">${escapeHtml(req.learner_email)}</small>
           </td>
-          <td><code class="bg-gray-100 p-1 rounded font-mono">${escapeHtml(req.bkash_tx_id)}</code></td>
-          <td><strong class="text-success">৳${req.amount_paid}</strong></td>
+          <td>
+            <div><code class="bg-gray-100 p-1 rounded font-mono">${escapeHtml(req.transaction_id || 'N/A')}</code></div>
+            <small class="text-muted"><i class="fa-solid fa-phone me-1"></i>${escapeHtml(req.payer_phone_number || '')}</small>
+          </td>
+          <td><strong class="text-success">৳${req.amount_paid || 0}</strong></td>
           <td>${new Date(req.created_at).toLocaleDateString()}</td>
           <td>
             <div class="d-flex gap-1">
@@ -260,7 +271,7 @@ async function loadInstructorDashboard() {
             <td><strong>${escapeHtml(flag.classroom_name)}</strong></td>
             <td>
               <div><strong>${escapeHtml(flag.homework_title)}</strong></div>
-              <small class="text-muted">${escapeHtml(flag.question_title)}</small>
+              <small class="text-muted">${escapeHtml(flag.question_text || 'Question')}</small>
             </td>
             <td>${escapeHtml(flag.student1_name)}</td>
             <td>${escapeHtml(flag.student2_name)}</td>
@@ -367,6 +378,7 @@ async function loadCalendarAndTodos() {
       return a.date - b.date;
     });
 
+    renderMonthGrid();
     renderAgendaTimeline('all');
     renderTodoList(personalTodos || []);
 
@@ -375,18 +387,142 @@ async function loadCalendarAndTodos() {
   }
 }
 
+// Render Monthly Calendar Grid
+function renderMonthGrid() {
+  const titleElem = document.getElementById('calendar-month-year-title');
+  const gridContainer = document.getElementById('calendar-days-grid');
+  if (!gridContainer || !titleElem) return;
+
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth(); // 0-indexed
+
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  titleElem.textContent = `${monthNames[month]} ${year}`;
+
+  const firstDayOfMonth = new Date(year, month, 1);
+  const startingDayOfWeek = firstDayOfMonth.getDay(); // 0 = Sun
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  let html = '';
+
+  // Previous month padding days
+  for (let i = startingDayOfWeek - 1; i >= 0; i--) {
+    const prevDayNum = daysInPrevMonth - i;
+    html += `<div class="calendar-day-cell other-month"><div class="day-number-bar"><span class="day-number">${prevDayNum}</span></div></div>`;
+  }
+
+  // Active month days
+  for (let day = 1; day <= daysInMonth; day++) {
+    const monthStr = String(month + 1).padStart(2, '0');
+    const dayStr = String(day).padStart(2, '0');
+    const dateKey = `${year}-${monthStr}-${dayStr}`;
+
+    const isToday = dateKey === todayStr;
+    const isSelected = dateKey === selectedDateStr;
+
+    // Filter events occurring on this date
+    const dayEvents = agendaEvents.filter(ev => {
+      if (!ev.date) return false;
+      const evDateKey = `${ev.date.getFullYear()}-${String(ev.date.getMonth() + 1).padStart(2, '0')}-${String(ev.date.getDate()).padStart(2, '0')}`;
+      return evDateKey === dateKey;
+    });
+
+    const cellClasses = [
+      'calendar-day-cell',
+      isToday ? 'is-today' : '',
+      isSelected ? 'selected-date' : ''
+    ].join(' ');
+
+    const miniPillsHtml = dayEvents.slice(0, 2).map(ev => {
+      let miniClass = 'todo';
+      if (ev.type === 'live_session') miniClass = 'live';
+      if (ev.type === 'homework') miniClass = 'deadline';
+      return `<div class="mini-event-pill ${miniClass}">${escapeHtml(ev.title)}</div>`;
+    }).join('');
+
+    const overflowCount = dayEvents.length > 2 ? `<small class="text-muted" style="font-size:0.65rem;">+${dayEvents.length - 2} more</small>` : '';
+
+    html += `
+      <div class="${cellClasses}" onclick="selectDate('${dateKey}')">
+        <div class="day-number-bar">
+          <span class="day-number">${day}</span>
+          ${dayEvents.length > 0 ? `<span class="badge badge-info" style="font-size:0.65rem; padding:0.1rem 0.35rem;">${dayEvents.length}</span>` : ''}
+        </div>
+        <div class="day-events-list">
+          ${miniPillsHtml}
+          ${overflowCount}
+        </div>
+      </div>
+    `;
+  }
+
+  // Next month padding days to complete 7x5 or 7x6 grid
+  const totalCellsSoFar = startingDayOfWeek + daysInMonth;
+  const remainingCells = (7 - (totalCellsSoFar % 7)) % 7;
+  for (let j = 1; j <= remainingCells; j++) {
+    html += `<div class="calendar-day-cell other-month"><div class="day-number-bar"><span class="day-number">${j}</span></div></div>`;
+  }
+
+  gridContainer.innerHTML = html;
+}
+
+function changeMonth(offset) {
+  currentDate.setMonth(currentDate.getMonth() + offset);
+  renderMonthGrid();
+}
+
+function resetCalendarToToday() {
+  currentDate = new Date();
+  selectedDateStr = null;
+  const title = document.getElementById('selected-date-agenda-title');
+  if (title) title.innerHTML = `<i class="fa-solid fa-list text-primary me-2"></i> All Upcoming Agenda`;
+  renderMonthGrid();
+  renderAgendaTimeline('all');
+}
+
+function selectDate(dateKey) {
+  selectedDateStr = dateKey;
+  renderMonthGrid();
+
+  const title = document.getElementById('selected-date-agenda-title');
+  if (title) {
+    const d = new Date(dateKey + 'T00:00:00');
+    title.innerHTML = `<i class="fa-solid fa-calendar-day text-primary me-2"></i> Agenda for ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+  }
+
+  renderAgendaTimeline('all');
+}
+
 // Render Agenda Items
 function renderAgendaTimeline(filterType = 'all') {
   const container = document.getElementById('agenda-timeline-container');
-  const filtered = filterType === 'all' 
+  if (!container) return;
+
+  let filtered = filterType === 'all' 
     ? agendaEvents 
     : agendaEvents.filter(item => item.type === filterType);
 
+  // If a specific date is selected, filter by that date
+  if (selectedDateStr) {
+    filtered = filtered.filter(ev => {
+      if (!ev.date) return false;
+      const evDateKey = `${ev.date.getFullYear()}-${String(ev.date.getMonth() + 1).padStart(2, '0')}-${String(ev.date.getDate()).padStart(2, '0')}`;
+      return evDateKey === selectedDateStr;
+    });
+  }
+
   if (filtered.length === 0) {
     container.innerHTML = `
-      <div class="text-center py-5 text-muted">
-        <i class="fa-solid fa-calendar-xmark text-2xl mb-2"></i>
-        <p>No upcoming events or deadlines found for this category.</p>
+      <div class="text-center py-4 text-muted">
+        <i class="fa-solid fa-calendar-xmark text-xl mb-1"></i>
+        <p style="font-size:0.85rem;">No upcoming events on this date.</p>
       </div>
     `;
     return;
@@ -502,9 +638,15 @@ async function deleteTodoItem(todoId) {
 function openAddTodoModal() {
   const select = document.getElementById('todo-classroom-select');
   select.innerHTML = `<option value="">-- Personal / No Specific Course --</option>` + 
-    userClassroomsList.map(c => `<option value="${c.classroom_id}">${escapeHtml(c.name)}</option>`).join('');
+    userClassroomsList.map(c => `<option value="${c.classroom_id}">${escapeHtml(c.classroom_name || c.name)}</option>`).join('');
 
   document.getElementById('add-todo-form').reset();
+  
+  // Pre-fill selected date if any date cell was clicked in calendar
+  if (selectedDateStr) {
+    document.getElementById('todo-duedate-input').value = `${selectedDateStr}T12:00`;
+  }
+
   document.getElementById('todo-modal').classList.add('active');
 }
 
@@ -539,7 +681,7 @@ async function handleAddTodoSubmit(event) {
       alert(`Failed to add task: ${data.message}`);
     }
   } catch (err) {
-    console.error('Error creating to-do:', err);
+    console.error('Error creating to-do:', event);
     alert('Server error creating task');
   } finally {
     saveBtn.disabled = false;

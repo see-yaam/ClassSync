@@ -7,10 +7,10 @@ const getLearnerDashboard = async (req, res) => {
   try {
     // 1. Enrolled Classrooms
     const [enrolledClassrooms] = await db.query(
-      `SELECT c.classroom_id, c.name, c.section, c.subject, c.room, c.code, u.full_name AS instructor_name, cm.joined_at
+      `SELECT c.classroom_id, c.classroom_name, c.room_number, c.description, c.is_paid, c.price, u.full_name AS instructor_name, cm.joined_at
        FROM classroom_members cm
        JOIN classrooms c ON cm.classroom_id = c.classroom_id
-       LEFT JOIN users u ON c.created_by = u.user_id
+       LEFT JOIN users u ON c.creator_id = u.user_id
        WHERE cm.user_id = ? AND cm.role = 'learner' AND cm.is_active = true
        ORDER BY cm.joined_at DESC`,
       [userId]
@@ -20,9 +20,9 @@ const getLearnerDashboard = async (req, res) => {
     const [submissions] = await db.query(
       `SELECT 
          s.submission_id, s.submitted_at, s.status AS submission_status,
-         q.question_id, q.title AS question_title, q.max_points,
+         q.question_id, q.question_text, q.points AS max_points,
          h.homework_id, h.title AS homework_title, h.deadline,
-         c.classroom_id, c.name AS classroom_name,
+         c.classroom_id, c.classroom_name,
          g.score, g.feedback, g.graded_at,
          u_inst.full_name AS graded_by_name
        FROM submissions s
@@ -38,19 +38,19 @@ const getLearnerDashboard = async (req, res) => {
 
     // 3. Warnings and Alerts Issued
     const [alerts] = await db.query(
-      `SELECT wa.alert_id, wa.alert_type, wa.alert_message, wa.is_resolved, wa.created_at,
-              c.name AS classroom_name, u.full_name AS instructor_name
-       FROM warning_alerts wa
-       JOIN classrooms c ON wa.classroom_id = c.classroom_id
-       JOIN users u ON wa.instructor_id = u.user_id
-       WHERE wa.learner_id = ?
-       ORDER BY wa.created_at DESC`,
+      `SELECT la.alert_id, la.alert_type, la.alert_message, la.is_resolved, la.created_at,
+              c.classroom_name, u.full_name AS instructor_name
+       FROM learner_alerts la
+       JOIN classrooms c ON la.classroom_id = c.classroom_id
+       JOIN users u ON la.instructor_id = u.user_id
+       WHERE la.learner_id = ?
+       ORDER BY la.created_at DESC`,
       [userId]
     );
 
     // 4. Upcoming Deadlines for enrolled courses
     const [upcomingDeadlines] = await db.query(
-      `SELECT h.homework_id, h.title, h.deadline, h.max_score, c.name AS classroom_name, c.classroom_id
+      `SELECT h.homework_id, h.title, h.deadline, h.total_points AS max_score, c.classroom_name, c.classroom_id
        FROM homework h
        JOIN classrooms c ON h.classroom_id = c.classroom_id
        JOIN classroom_members cm ON c.classroom_id = cm.classroom_id
@@ -95,10 +95,10 @@ const getInstructorDashboard = async (req, res) => {
   try {
     // 1. Created / Taught Classrooms
     const [createdClassrooms] = await db.query(
-      `SELECT c.classroom_id, c.name, c.section, c.subject, c.room, c.code, c.created_at,
+      `SELECT c.classroom_id, c.classroom_name, c.room_number, c.description, c.created_at,
               (SELECT COUNT(*) FROM classroom_members cm WHERE cm.classroom_id = c.classroom_id AND cm.role = 'learner' AND cm.is_active = true) AS student_count
        FROM classrooms c
-       WHERE c.created_by = ?
+       WHERE c.creator_id = ?
           OR c.classroom_id IN (SELECT classroom_id FROM classroom_members WHERE user_id = ? AND role = 'instructor' AND is_active = true)
        ORDER BY c.created_at DESC`,
       [userId, userId]
@@ -111,13 +111,15 @@ const getInstructorDashboard = async (req, res) => {
     let pendingRequests = [];
 
     if (classroomIds.length > 0) {
+      const placeholders = classroomIds.map(() => '?').join(',');
+
       // 2. Master Pending Grading Queue
       const [pending] = await db.query(
         `SELECT 
            s.submission_id, s.submitted_at, s.status,
-           q.question_id, q.title AS question_title, q.max_points,
+           q.question_id, q.question_text, q.points AS max_points,
            h.homework_id, h.title AS homework_title,
-           c.classroom_id, c.name AS classroom_name,
+           c.classroom_id, c.classroom_name,
            u.user_id AS learner_id, u.full_name AS learner_name, u.email AS learner_email
          FROM submissions s
          JOIN questions q ON s.question_id = q.question_id
@@ -125,9 +127,9 @@ const getInstructorDashboard = async (req, res) => {
          JOIN classrooms c ON h.classroom_id = c.classroom_id
          JOIN users u ON s.learner_id = u.user_id
          LEFT JOIN grades g ON s.submission_id = g.submission_id
-         WHERE c.classroom_id IN (?) AND g.grade_id IS NULL
+         WHERE c.classroom_id IN (${placeholders}) AND g.grade_id IS NULL
          ORDER BY s.submitted_at ASC`,
-        [classroomIds]
+        classroomIds
       );
       pendingGradingQueue = pending;
 
@@ -137,7 +139,7 @@ const getInstructorDashboard = async (req, res) => {
            pf.flag_id, pf.similarity_score, pf.is_reviewed, pf.created_at,
            s1.submission_id AS sub1_id, u1.full_name AS student1_name,
            s2.submission_id AS sub2_id, u2.full_name AS student2_name,
-           q.title AS question_title, h.title AS homework_title, c.name AS classroom_name
+           q.question_text, h.title AS homework_title, c.classroom_name
          FROM plagiarism_flags pf
          JOIN submissions s1 ON pf.submission_id_1 = s1.submission_id
          JOIN submissions s2 ON pf.submission_id_2 = s2.submission_id
@@ -146,25 +148,25 @@ const getInstructorDashboard = async (req, res) => {
          JOIN questions q ON s1.question_id = q.question_id
          JOIN homework h ON q.homework_id = h.homework_id
          JOIN classrooms c ON h.classroom_id = c.classroom_id
-         WHERE c.classroom_id IN (?)
+         WHERE c.classroom_id IN (${placeholders})
          ORDER BY pf.created_at DESC
          LIMIT 20`,
-        [classroomIds]
+        classroomIds
       );
       plagiarismOverview = plagiarism;
 
       // 4. Pending Paid Enrollment Requests
       const [requests] = await db.query(
         `SELECT 
-           r.request_id, r.amount_paid, r.bkash_tx_id, r.status, r.created_at,
-           c.classroom_id, c.name AS classroom_name,
-           u.user_id AS learner_id, u.full_name AS learner_name, u.email AS learner_email
-         FROM paid_enrollment_requests r
+           r.request_id, r.classroom_id, r.user_id AS learner_id, r.payment_method, r.payer_phone_number, r.transaction_id, r.status, r.requested_at AS created_at,
+           c.classroom_name, c.price AS amount_paid,
+           u.full_name AS learner_name, u.email AS learner_email
+         FROM enrollment_requests r
          JOIN classrooms c ON r.classroom_id = c.classroom_id
-         JOIN users u ON r.learner_id = u.user_id
-         WHERE c.classroom_id IN (?) AND r.status = 'pending'
-         ORDER BY r.created_at ASC`,
-        [classroomIds]
+         JOIN users u ON r.user_id = u.user_id
+         WHERE c.classroom_id IN (${placeholders}) AND r.status = 'pending'
+         ORDER BY r.requested_at ASC`,
+        classroomIds
       );
       pendingRequests = requests;
     }
@@ -200,7 +202,7 @@ const getCalendarEvents = async (req, res) => {
     const [liveSessions] = await db.query(
       `SELECT 
          ls.session_id, ls.session_title, ls.session_description, ls.scheduled_time, ls.expected_duration,
-         ls.jitsi_room_id, ls.is_active, c.classroom_id, c.name AS classroom_name, 'live_session' AS event_type
+         ls.jitsi_room_id, ls.is_active, c.classroom_id, c.classroom_name, 'live_session' AS event_type
        FROM live_sessions ls
        JOIN classrooms c ON ls.classroom_id = c.classroom_id
        JOIN classroom_members cm ON c.classroom_id = cm.classroom_id
@@ -212,8 +214,8 @@ const getCalendarEvents = async (req, res) => {
     // 2. Homework Deadlines for all user classrooms
     const [homeworkDeadlines] = await db.query(
       `SELECT 
-         h.homework_id, h.title AS homework_title, h.deadline AS scheduled_time, h.max_score,
-         c.classroom_id, c.name AS classroom_name, 'homework' AS event_type
+         h.homework_id, h.title AS homework_title, h.deadline AS scheduled_time, h.total_points AS max_score,
+         c.classroom_id, c.classroom_name, 'homework' AS event_type
        FROM homework h
        JOIN classrooms c ON h.classroom_id = c.classroom_id
        JOIN classroom_members cm ON c.classroom_id = cm.classroom_id
@@ -226,7 +228,7 @@ const getCalendarEvents = async (req, res) => {
     const [personalTodos] = await db.query(
       `SELECT 
          t.todo_id, t.title AS todo_title, t.due_date AS scheduled_time, t.priority, t.completed,
-         t.classroom_id, c.name AS classroom_name, 'todo' AS event_type
+         t.classroom_id, c.classroom_name, 'todo' AS event_type
        FROM user_todos t
        LEFT JOIN classrooms c ON t.classroom_id = c.classroom_id
        WHERE t.user_id = ?
@@ -253,7 +255,7 @@ const getTodos = async (req, res) => {
   const userId = req.user.user_id;
   try {
     const [todos] = await db.query(
-      `SELECT t.*, c.name AS classroom_name
+      `SELECT t.*, c.classroom_name
        FROM user_todos t
        LEFT JOIN classrooms c ON t.classroom_id = c.classroom_id
        WHERE t.user_id = ?
