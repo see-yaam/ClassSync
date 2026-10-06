@@ -207,7 +207,7 @@ ClassSync/
 
 ---
 
-## 5. Database Schema — All 17 Tables
+## 5. Database Schema — All 29 Tables
 
 > **Schema file**: [schema.sql](file:///e:/ClassSync/schema.sql)
 
@@ -215,7 +215,7 @@ ClassSync/
 
 | # | Table Name | Purpose | Key Columns |
 |---|-----------|---------|-------------|
-| 1 | `users` | All registered users | `user_id` PK, email, password_hash, is_verified |
+| 1 | `users` | All registered users | `user_id` PK, email, password_hash, profile_picture_url, bio, social links |
 | 2 | `password_reset_otp` | OTP codes for registration & password reset | `otp_id` PK, user_id FK, otp_code, otp_purpose (ENUM) |
 | 3 | `classrooms` | Classroom/course definitions | `classroom_id` PK, creator_id FK, room_number (UNIQUE), visibility, is_paid, price |
 | 4 | `classroom_members` | User-to-classroom membership + role | `member_id` PK, user_id FK, classroom_id FK, role (ENUM: instructor/TA/learner) |
@@ -237,6 +237,14 @@ ClassSync/
 | 20 | `live_sessions` | Scheduled/active live video class sessions | `session_id` PK, jitsi_room_id (UNIQUE), started_at, ended_at |
 | 21 | `attendance` | Learner attendance records for live sessions | `attendance_id` PK, session_id FK, duration_minutes, instructor_override |
 | 22 | `plagiarism_flags` | Plagiarism similarity detection results | `flag_id` PK, submission_id_1 FK, submission_id_2 FK, similarity_score |
+| 23 | `user_todos` | Personal task management | `todo_id` PK, user_id FK, title, priority, due_date, completed |
+| 24 | `quizzes` | Quizzes & Exams definition | `quiz_id` PK, classroom_id FK, created_by FK, quiz_type (ENUM: live/flexible), duration_minutes |
+| 25 | `quiz_questions` | Questions inside a quiz | `question_id` PK, quiz_id FK, question_type (ENUM: mcq/true_false/short_answer/coding), points |
+| 26 | `quiz_options` | MCQ options for quiz questions | `option_id` PK, question_id FK, option_text, is_correct |
+| 27 | `quiz_test_cases` | Test cases for coding quiz questions | `test_case_id` PK, question_id FK, input_data, expected_output, is_hidden |
+| 28 | `quiz_attempts` | Student quiz attempt instances | `attempt_id` PK, quiz_id FK, learner_id FK, started_at, status (ENUM: in_progress/submitted/time_expired) |
+| 29 | `quiz_answers` | Student answers submitted per quiz question | `answer_id` PK, attempt_id FK, question_id FK, selected_option_id, answer_text, coding_language |
+
 
 ### 5.2 Key Constraints & Indexes
 
