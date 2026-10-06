@@ -253,6 +253,58 @@ const getSubmissionHeatmap = async (req, res) => {
   }
 };
 
+// POST /api/users/me/avatar - Upload user avatar
+const uploadAvatar = async (req, res) => {
+  try {
+    const userId = req.user.user_id;
+    const { filename, filedata } = req.body;
+
+    if (!filename || !filedata) {
+      return res.status(400).json({ success: false, message: 'Filename and filedata are required' });
+    }
+
+    const { uploadFile } = require('./uploadController');
+    
+    let base64Content = filedata;
+    if (filedata.includes(';base64,')) {
+      base64Content = filedata.split(';base64,')[1];
+    }
+    const buffer = Buffer.from(base64Content, 'base64');
+    
+    if (buffer.length > 5 * 1024 * 1024) {
+      return res.status(400).json({ success: false, message: 'Image size exceeds 5 MB limit' });
+    }
+
+    const fs = require('fs');
+    const path = require('path');
+    const uploadDirectory = path.join(__dirname, '../../public/uploads');
+    const sanitizedFilename = filename.replace(/[^a-zA-Z0-9_.-]/g, '_');
+    const uniqueFilename = `avatar_${userId}_${Date.now()}_${sanitizedFilename}`;
+    const filePath = path.join(uploadDirectory, uniqueFilename);
+    let avatarUrl = `/uploads/${uniqueFilename}`;
+
+    try {
+      if (!fs.existsSync(uploadDirectory)) {
+        fs.mkdirSync(uploadDirectory, { recursive: true });
+      }
+      fs.writeFileSync(filePath, buffer);
+    } catch (fsErr) {
+      avatarUrl = filedata.startsWith('data:') ? filedata : `data:image/png;base64,${base64Content}`;
+    }
+
+    await db.query('UPDATE users SET profile_picture_url = ? WHERE user_id = ?', [avatarUrl, userId]);
+
+    res.json({
+      success: true,
+      message: 'Avatar uploaded and updated successfully!',
+      profile_picture_url: avatarUrl
+    });
+  } catch (error) {
+    console.error('Error uploading avatar:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   getAllUsers,
   getMe,
@@ -260,6 +312,7 @@ module.exports = {
   changePassword,
   requestEmailChangeOTP,
   verifyEmailChangeOTP,
-  getSubmissionHeatmap
+  getSubmissionHeatmap,
+  uploadAvatar
 };
 

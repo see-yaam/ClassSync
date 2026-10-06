@@ -144,6 +144,39 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // Real-time password strength meter listener
+  if (setPassNew) {
+    setPassNew.addEventListener('input', () => {
+      const val = setPassNew.value;
+      const meterEl = document.getElementById('pass-strength-indicator');
+      if (!meterEl) return;
+
+      if (!val) {
+        meterEl.textContent = '';
+        meterEl.className = '';
+        return;
+      }
+
+      let score = 0;
+      if (val.length >= 6) score++;
+      if (val.length >= 10) score++;
+      if (/[A-Z]/.test(val)) score++;
+      if (/[0-9]/.test(val)) score++;
+      if (/[^A-Za-z0-9]/.test(val)) score++;
+
+      if (score <= 2) {
+        meterEl.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> Weak Password (add numbers/symbols)`;
+        meterEl.style.color = 'var(--status-red, #ef4444)';
+      } else if (score === 3 || score === 4) {
+        meterEl.innerHTML = `<i class="fa-solid fa-circle-check"></i> Medium Password`;
+        meterEl.style.color = 'var(--status-amber, #f59e0b)';
+      } else {
+        meterEl.innerHTML = `<i class="fa-solid fa-shield-check"></i> Strong Password`;
+        meterEl.style.color = 'var(--status-emerald, #10b981)';
+      }
+    });
+  }
+
   // Change Password Form Handler
   if (settingsPassForm) {
     settingsPassForm.onsubmit = async (e) => {

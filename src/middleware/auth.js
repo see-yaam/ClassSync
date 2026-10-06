@@ -7,10 +7,12 @@ const verifyToken = async (req, res, next) => {
   try {
     let token = null;
 
-    // Check Authorization header (Bearer <token>)
+    // Check Authorization header (Bearer <token>) or query token parameter for downloads
     const authHeader = req.headers['authorization'];
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.substring(7).trim();
+    } else if (req.query && req.query.token) {
+      token = String(req.query.token).trim();
     }
 
     // Fallback for development/testing: check x-user-id header

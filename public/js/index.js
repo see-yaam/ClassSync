@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       sectionDashboard.style.display = 'block';
       sectionBrowse.style.display = 'none';
-      loadDashboard();
+      window.location.href = '/dashboard.html';
     };
   }
 
@@ -536,18 +536,5 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // Initial Load
-  if (isAuth) {
-    // Authenticated users start on their Dashboard so alert glow is visible immediately
-    if (dashboardTab && browseTab) {
-      dashboardTab.classList.add('active', 'btn-primary');
-      dashboardTab.classList.remove('btn-outline');
-      browseTab.classList.remove('active', 'btn-primary');
-      browseTab.classList.add('btn-outline');
-      if (sectionDashboard) sectionDashboard.style.display = 'block';
-      if (sectionBrowse) sectionBrowse.style.display = 'none';
-    }
-    loadDashboard();
-  } else {
-    loadPublicCourses();
-  }
+  loadPublicCourses();
 });

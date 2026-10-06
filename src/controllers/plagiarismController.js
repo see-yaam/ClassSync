@@ -231,10 +231,79 @@ const clearPlagiarismFlags = async (req, res) => {
   }
 };
 
+// GET /api/plagiarism/compare?sub1=X&sub2=Y - Side-by-side comparison payload
+const getSubmissionComparison = async (req, res) => {
+  try {
+    const subId1 = req.query.sub1;
+    const subId2 = req.query.sub2;
+    const userId = req.user.user_id;
+
+    if (!subId1 || !subId2) {
+      return res.status(400).json({ success: false, message: 'sub1 and sub2 submission IDs are required' });
+    }
+
+    const [rows] = await db.query(
+      `SELECT s.submission_id, s.code_content, u.full_name AS student_name, u.email, q.question_text, h.classroom_id
+       FROM submissions s
+       JOIN users u ON s.learner_id = u.user_id
+       JOIN questions q ON s.question_id = q.question_id
+       JOIN homework h ON q.homework_id = h.homework_id
+       WHERE s.submission_id IN (?, ?)`,
+      [subId1, subId2]
+    );
+
+    if (rows.length < 2) {
+      return res.status(404).json({ success: false, message: 'One or both submissions were not found' });
+    }
+
+    if (!(await isInstructorOrTA(userId, rows[0].classroom_id))) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    const sub1 = rows.find(r => String(r.submission_id) === String(subId1));
+    const sub2 = rows.find(r => String(r.submission_id) === String(subId2));
+
+    const similarityScore = calculateSimilarity(sub1.code_content, sub2.code_content);
+
+    // Compute line matches
+    const lines1 = (sub1.code_content || '').split('\n');
+    const lines2 = (sub2.code_content || '').split('\n');
+    const lineMatches1 = lines1.map(l => lines2.some(l2 => l.trim() && l.trim() === l2.trim()));
+    const lineMatches2 = lines2.map(l => lines1.some(l1 => l.trim() && l.trim() === l1.trim()));
+
+    res.json({
+      success: true,
+      data: {
+        similarity_score: Math.round(similarityScore * 10) / 10,
+        sub1: {
+          submission_id: sub1.submission_id,
+          student_name: sub1.student_name,
+          email: sub1.email,
+          content: sub1.code_content,
+          lines: lines1,
+          line_matches: lineMatches1
+        },
+        sub2: {
+          submission_id: sub2.submission_id,
+          student_name: sub2.student_name,
+          email: sub2.email,
+          content: sub2.code_content,
+          lines: lines2,
+          line_matches: lineMatches2
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching submission comparison:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   calculateSimilarity,
   runPlagiarismScan,
   getPlagiarismFlags,
   reviewPlagiarismFlag,
-  clearPlagiarismFlags
+  clearPlagiarismFlags,
+  getSubmissionComparison
 };

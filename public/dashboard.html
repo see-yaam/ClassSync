@@ -426,6 +426,53 @@
       border-radius: 4px;
       transition: width 0.3s ease;
     }
+    .cal-day-cell {
+      background: var(--bg-color);
+      border: 1px solid var(--border-color);
+      border-radius: 0.6rem;
+      min-height: 80px;
+      padding: 0.4rem 0.5rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .cal-day-cell:hover {
+      border-color: var(--primary-color);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+    .cal-day-cell.other-month {
+      opacity: 0.35;
+    }
+    .cal-day-cell.today {
+      border: 2px solid var(--primary-color);
+      background: rgba(37, 99, 235, 0.04);
+    }
+    .cal-day-cell.selected {
+      outline: 2px solid var(--primary-color);
+    }
+    .cal-day-num {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+    .cal-events-dots {
+      display: flex;
+      gap: 0.25rem;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 0.25rem;
+    }
+    .cal-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+    }
+    .cal-dot-hw { background-color: var(--status-red); }
+    .cal-dot-live { background-color: #2563eb; }
+    .cal-dot-todo { background-color: #059669; }
   </style>
 </head>
 <body>
@@ -450,78 +497,186 @@
       </div>
     </div>
 
-    <!-- Quick Stats Cards Row -->
-    <div class="stats-grid" id="stats-grid">
-      <!-- Stat 1 -->
+    <!-- Quick Stats Cards Row (Top Overview Cards) -->
+    <div class="stats-grid" id="stats-grid" style="margin-bottom: 1.5rem;">
       <div class="stat-card">
-        <div class="stat-icon-wrapper stat-icon-blue">
-          <i class="fa-solid fa-chalkboard-user"></i>
-        </div>
+        <div class="stat-icon-wrapper stat-icon-blue"><i class="fa-solid fa-school"></i></div>
         <div class="stat-info">
           <div class="stat-value" id="stat-classrooms-count">-</div>
-          <div class="stat-label" id="stat-classrooms-label">Enrolled Classrooms</div>
+          <div class="stat-label" id="stat-classrooms-label">Classrooms</div>
         </div>
       </div>
-
-      <!-- Stat 2 -->
       <div class="stat-card">
-        <div class="stat-icon-wrapper stat-icon-amber">
-          <i class="fa-solid fa-clock"></i>
-        </div>
+        <div class="stat-icon-wrapper stat-icon-amber"><i class="fa-solid fa-clock"></i></div>
         <div class="stat-info">
           <div class="stat-value" id="stat-pending-count">-</div>
-          <div class="stat-label" id="stat-pending-label">Upcoming Deadlines</div>
+          <div class="stat-label" id="stat-pending-label">Pending Items</div>
         </div>
       </div>
-
-      <!-- Stat 3 -->
       <div class="stat-card">
-        <div class="stat-icon-wrapper stat-icon-emerald">
-          <i class="fa-solid fa-file-check"></i>
-        </div>
+        <div class="stat-icon-wrapper stat-icon-emerald"><i class="fa-solid fa-file-check"></i></div>
         <div class="stat-info">
           <div class="stat-value" id="stat-submitted-count">-</div>
           <div class="stat-label" id="stat-submitted-label">Submissions</div>
         </div>
       </div>
-
-      <!-- Stat 4 -->
       <div class="stat-card">
-        <div class="stat-icon-wrapper stat-icon-purple">
-          <i class="fa-solid fa-chart-pie"></i>
-        </div>
+        <div class="stat-icon-wrapper stat-icon-purple"><i class="fa-solid fa-chart-pie"></i></div>
         <div class="stat-info">
           <div class="stat-value" id="stat-grade-count">-</div>
-          <div class="stat-label" id="stat-grade-label">Average Grade</div>
+          <div class="stat-label" id="stat-grade-label">Average Score</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dashboard View Mode Switcher Tabs (Role Based & Calendar) -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;" id="dash-view-tabs-container">
+      <div class="dash-view-tabs" style="display: flex; gap: 0.5rem; background: var(--card-bg); padding: 0.35rem; border-radius: 0.65rem; border: 1px solid var(--border-color);">
+        <button id="tab-btn-instructor" class="btn btn-sm btn-primary" onclick="switchRoleView('instructor')" style="display: none;">
+          <i class="fa-solid fa-chalkboard-user"></i> Instructor View
+        </button>
+        <button id="tab-btn-learner" class="btn btn-sm btn-outline" onclick="switchRoleView('learner')" style="border: none; display: none;">
+          <i class="fa-solid fa-graduation-cap"></i> Learner View
+        </button>
+        <button id="tab-btn-calendar" class="btn btn-sm btn-outline" onclick="switchRoleView('calendar')" style="border: none;">
+          <i class="fa-solid fa-calendar-days"></i> Academic Calendar
+        </button>
+      </div>
+    </div>
+
+    <!-- Academic Calendar View Container -->
+    <div id="dashboard-calendar-view" style="display: none;" class="dashboard-section">
+      <div class="section-header" style="flex-wrap: wrap; gap: 1rem;">
+        <div class="section-title">
+          <i class="fa-solid fa-calendar-days" style="color: var(--primary-color);"></i>
+          <span id="cal-month-year-label">October 2026</span>
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+          <a href="/api/dashboard/calendar/export" class="btn btn-primary btn-sm" id="export-ical-btn" title="Export schedule to Google / iCal calendar">
+            <i class="fa-solid fa-file-export"></i> Export iCal (.ics)
+          </a>
+          <button class="btn btn-outline btn-sm" onclick="changeCalendarMonth(-1)"><i class="fa-solid fa-chevron-left"></i> Prev</button>
+          <button class="btn btn-outline btn-sm" onclick="resetCalendarToToday()">Today</button>
+          <button class="btn btn-outline btn-sm" onclick="changeCalendarMonth(1)">Next <i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+      </div>
+
+      <!-- Legend -->
+      <div style="display: flex; gap: 1.5rem; margin-bottom: 1.25rem; font-size: 0.85rem; color: var(--text-muted); flex-wrap: wrap;">
+        <span style="display: flex; align-items: center; gap: 0.4rem;"><span class="cal-dot cal-dot-hw"></span> Homework Deadline</span>
+        <span style="display: flex; align-items: center; gap: 0.4rem;"><span class="cal-dot cal-dot-live"></span> Live Class Session</span>
+        <span style="display: flex; align-items: center; gap: 0.4rem;"><span class="cal-dot cal-dot-todo"></span> Personal Task</span>
+      </div>
+
+      <!-- Calendar Header Row -->
+      <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.5rem; text-align: center; margin-bottom: 0.5rem;">
+        <div style="font-weight: 700; font-size: 0.825rem; color: var(--text-muted); padding: 0.4rem;">Sun</div>
+        <div style="font-weight: 700; font-size: 0.825rem; color: var(--text-muted); padding: 0.4rem;">Mon</div>
+        <div style="font-weight: 700; font-size: 0.825rem; color: var(--text-muted); padding: 0.4rem;">Tue</div>
+        <div style="font-weight: 700; font-size: 0.825rem; color: var(--text-muted); padding: 0.4rem;">Wed</div>
+        <div style="font-weight: 700; font-size: 0.825rem; color: var(--text-muted); padding: 0.4rem;">Thu</div>
+        <div style="font-weight: 700; font-size: 0.825rem; color: var(--text-muted); padding: 0.4rem;">Fri</div>
+        <div style="font-weight: 700; font-size: 0.825rem; color: var(--text-muted); padding: 0.4rem;">Sat</div>
+      </div>
+
+      <!-- Calendar Days Grid -->
+      <div id="calendar-days-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.5rem;"></div>
+
+      <!-- Selected Day Agenda Drawer -->
+      <div id="calendar-day-agenda" style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--border-color);">
+        <h4 id="cal-agenda-date-title" style="font-size: 1rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--text-main);">Schedule for Selected Day</h4>
+        <div id="cal-agenda-events-list">
+          <p style="font-size: 0.875rem; color: var(--text-muted);">Click on any date in the calendar above to view detailed schedule.</p>
+        </div>
+      </div>
+
+      <!-- Personal Academic Tasks & Calendar To-Do Manager -->
+      <div style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+        <div class="section-header" style="margin-bottom: 1rem;">
+          <div class="section-title">
+            <i class="fa-solid fa-list-check" style="color: var(--primary-color);"></i> <span>Personal Tasks & Academic To-Do List</span>
+          </div>
+          <span class="badge" id="todo-count-badge" style="background: var(--sidebar-active-bg); color: var(--primary-color);">0/0</span>
+        </div>
+
+
+
+        <!-- Task Progress Bar -->
+        <div style="margin-bottom: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.35rem;">
+            <span>Completion Progress</span>
+            <span id="todo-progress-percent">0%</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="todo-progress-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <!-- Task List items -->
+        <div class="todo-list-container" id="todo-list-container">
+          <div class="empty-state" style="padding: 1rem;">
+            <p style="font-size: 0.85rem;">No tasks yet. Add one above!</p>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- Main Dashboard Two-Column Layout -->
-    <div class="dashboard-layout">
+    <div class="dashboard-layout" id="dashboard-overview-view">
       <!-- Left Column: Classrooms & Academic Work -->
       <div class="dash-main-col">
-        <!-- Section 1: Active Classrooms -->
-        <div class="dashboard-section">
+        <!-- Managed Classrooms Section (For Instructors/TAs) -->
+        <div class="dashboard-section" id="section-managed-classrooms" style="display: none;">
           <div class="section-header">
             <div class="section-title">
-              <i class="fa-solid fa-school"></i> <span id="classrooms-section-title">My Classrooms</span>
+              <i class="fa-solid fa-chalkboard-user"></i> <span>Managed Classrooms</span>
             </div>
-            <a href="/index.html" class="btn btn-outline btn-sm">View All</a>
+            <a href="/index.html" class="btn btn-outline btn-sm">Manage All</a>
           </div>
-          <div class="classrooms-mini-grid" id="classrooms-grid">
+          <div class="classrooms-mini-grid" id="managed-classrooms-grid">
             <div class="empty-state">
               <i class="fa-solid fa-spinner fa-spin"></i>
-              <p>Loading your classrooms...</p>
+              <p>Loading managed classrooms...</p>
             </div>
           </div>
         </div>
 
-        <!-- Section 2: Upcoming Homeworks & Deadlines -->
-        <div class="dashboard-section">
+        <!-- Enrolled Classrooms Section (For Learners) -->
+        <div class="dashboard-section" id="section-enrolled-classrooms">
           <div class="section-header">
             <div class="section-title">
-              <i class="fa-solid fa-hourglass-half"></i> <span id="homework-section-title">Upcoming Homework & Deadlines</span>
+              <i class="fa-solid fa-school"></i> <span>Enrolled Classrooms</span>
+            </div>
+            <a href="/index.html" class="btn btn-outline btn-sm">Browse All</a>
+          </div>
+          <div class="classrooms-mini-grid" id="enrolled-classrooms-grid">
+            <div class="empty-state">
+              <i class="fa-solid fa-spinner fa-spin"></i>
+              <p>Loading enrolled classrooms...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pending Grading Queue (For Instructors) -->
+        <div class="dashboard-section" id="section-grading-queue" style="display: none;">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fa-solid fa-clipboard-check"></i> <span>Pending Grading Queue</span>
+            </div>
+          </div>
+          <div id="grading-queue-container">
+            <div class="empty-state">
+              <i class="fa-solid fa-spinner fa-spin"></i>
+              <p>Loading grading queue...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upcoming Homeworks & Deadlines (For Learners) -->
+        <div class="dashboard-section" id="section-upcoming-homework">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fa-solid fa-hourglass-half"></i> <span>Upcoming Homework & Deadlines</span>
             </div>
           </div>
           <div id="homework-list-container">
@@ -532,11 +687,26 @@
           </div>
         </div>
 
-        <!-- Section 3: Recent Submissions / Grading Queue -->
-        <div class="dashboard-section">
+        <!-- Learner At-Risk Alerts (For Instructors) -->
+        <div class="dashboard-section" id="section-at-risk-alerts" style="display: none;">
           <div class="section-header">
             <div class="section-title">
-              <i class="fa-solid fa-award"></i> <span id="submissions-section-title">Recent Submissions & Grades</span>
+              <i class="fa-solid fa-triangle-exclamation" style="color: var(--status-red);"></i> <span>Learner Health & At-Risk Alerts</span>
+            </div>
+          </div>
+          <div id="at-risk-alerts-container">
+            <div class="empty-state">
+              <i class="fa-solid fa-spinner fa-spin"></i>
+              <p>Loading alerts...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Submissions & Grades (For Learners) -->
+        <div class="dashboard-section" id="section-recent-submissions">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fa-solid fa-award"></i> <span>Recent Submissions & Grades</span>
             </div>
           </div>
           <div id="submissions-list-container">
@@ -548,7 +718,7 @@
         </div>
       </div>
 
-      <!-- Right Sidebar Column: To-Do Widget & Live Sessions -->
+      <!-- Right Sidebar Column: Live Sessions -->
       <div class="dash-side-col">
         <!-- Live Sessions Widget -->
         <div class="dashboard-section" id="live-sessions-widget">
@@ -563,48 +733,213 @@
             </div>
           </div>
         </div>
-
-        <!-- Personal To-Do Widget -->
-        <div class="dashboard-section">
-          <div class="section-header" style="margin-bottom: 0.85rem;">
-            <div class="section-title">
-              <i class="fa-solid fa-list-check"></i> Personal Tasks
-            </div>
-            <span class="badge" id="todo-count-badge" style="background: var(--sidebar-active-bg); color: var(--primary-color);">0/0</span>
-          </div>
-
-          <!-- Add Task Input Form -->
-          <form id="todo-add-form" class="todo-add-box" onsubmit="handleAddTodo(event)">
-            <input type="text" id="todo-input-title" class="todo-add-input" placeholder="Add a new task..." required>
-            <select id="todo-input-priority" class="todo-priority-select">
-              <option value="low">Low</option>
-              <option value="medium" selected>Med</option>
-              <option value="high">High</option>
-            </select>
-            <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus"></i></button>
-          </form>
-
-          <!-- Task Progress Bar -->
-          <div style="margin-bottom: 1rem;">
-            <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-muted);">
-              <span>Progress</span>
-              <span id="todo-progress-percent">0%</span>
-            </div>
-            <div class="progress-bar-bg">
-              <div class="progress-bar-fill" id="todo-progress-fill" style="width: 0%;"></div>
-            </div>
-          </div>
-
-          <!-- Task List items -->
-          <div class="todo-list-container" id="todo-list-container">
-            <div class="empty-state" style="padding: 1rem;">
-              <p style="font-size: 0.85rem;">No tasks yet. Add one above!</p>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   </main>
+
+  <!-- Add Personal Task Calendar Modal Popup -->
+  <div class="modal" id="add-task-modal">
+    <div class="modal-content" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; margin: 0;">
+          <i class="fa-solid fa-calendar-plus" style="color: var(--primary-color);"></i> Add Task for <span id="modal-task-date-label">Selected Date</span>
+        </h3>
+        <button class="modal-close" id="close-task-modal">&times;</button>
+      </div>
+      <form id="modal-task-form">
+        <input type="hidden" id="modal-task-date-val">
+        
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label for="modal-task-title" style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.35rem; display: block;">Task Name / Description *</label>
+          <input type="text" id="modal-task-title" class="form-control" placeholder="e.g. Revise DBMS Lab 3 Assignment" required>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+          <div class="form-group">
+            <label for="modal-task-time" style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.35rem; display: block;">Notification Time *</label>
+            <input type="time" id="modal-task-time" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label for="modal-task-priority" style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.35rem; display: block;">Priority</label>
+            <select id="modal-task-priority" class="form-control">
+              <option value="low">Low Priority</option>
+              <option value="medium" selected>Medium Priority</option>
+              <option value="high">High Priority</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.25rem;">
+          <button type="button" class="btn btn-outline btn-sm" id="cancel-task-modal">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-sm" id="save-task-modal-btn">
+            <i class="fa-solid fa-bell"></i> Save & Set Reminder
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Create Quiz Modal (Instructor) -->
+  <div class="modal" id="create-quiz-modal">
+    <div class="modal-content" style="max-width: 680px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; margin: 0;">
+          <i class="fa-solid fa-pen-to-square" style="color: var(--primary-color);"></i> Create New Quiz / Exam
+        </h3>
+        <button class="modal-close" onclick="closeModal('create-quiz-modal')">&times;</button>
+      </div>
+      <form id="create-quiz-form" onsubmit="handleCreateQuizSubmit(event)">
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.35rem; display: block;">Select Classroom *</label>
+          <select id="quiz-classroom-select" class="form-control" required>
+            <!-- Auto populated -->
+          </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.35rem; display: block;">Quiz Title *</label>
+          <input type="text" id="quiz-title-input" class="form-control" placeholder="e.g. Midterm MCQ Exam - Chapter 1 to 4" required>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.35rem; display: block;">Instructions / Description</label>
+          <textarea id="quiz-desc-input" class="form-control" rows="2" placeholder="e.g. Answer all questions within 15 minutes. No negative marking."></textarea>
+        </div>
+
+        <!-- Quiz Type Selector -->
+        <div style="background: var(--bg-color); padding: 1rem; border-radius: 0.75rem; border: 1px solid var(--border-color); margin-bottom: 1.25rem;">
+          <label style="font-size: 0.9rem; font-weight: 700; margin-bottom: 0.5rem; display: block; color: var(--primary-color);">
+            <i class="fa-solid fa-clock-rotate-left"></i> Quiz Timing & Mode Configuration *
+          </label>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+            <label style="display: flex; gap: 0.6rem; align-items: flex-start; background: var(--card-bg); padding: 0.75rem; border-radius: 0.5rem; border: 1px solid var(--border-color); cursor: pointer;">
+              <input type="radio" name="quiz_type_radio" value="flexible" checked onchange="toggleQuizTypeFields('flexible')" style="margin-top: 0.25rem;">
+              <div>
+                <strong style="display: block; font-size: 0.875rem;">⏱️ Flexible Window Exam</strong>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">Student starts anytime during window, gets full timer duration.</span>
+              </div>
+            </label>
+
+            <label style="display: flex; gap: 0.6rem; align-items: flex-start; background: var(--card-bg); padding: 0.75rem; border-radius: 0.5rem; border: 1px solid var(--border-color); cursor: pointer;">
+              <input type="radio" name="quiz_type_radio" value="live" onchange="toggleQuizTypeFields('live')" style="margin-top: 0.25rem;">
+              <div>
+                <strong style="display: block; font-size: 0.875rem;">⚡ Scheduled Live Exam</strong>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">Strict live start & end cutoff time (joining late reduces time).</span>
+              </div>
+            </label>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem;">
+            <div class="form-group">
+              <label style="font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem; display: block;">Duration (Mins) *</label>
+              <input type="number" id="quiz-duration-input" class="form-control" value="15" min="1" max="180" required>
+            </div>
+            <div class="form-group">
+              <label style="font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem; display: block;">Start DateTime</label>
+              <input type="datetime-local" id="quiz-start-input" class="form-control">
+            </div>
+            <div class="form-group">
+              <label style="font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem; display: block;">End/Expiry DateTime</label>
+              <input type="datetime-local" id="quiz-end-input" class="form-control">
+            </div>
+          </div>
+        </div>
+
+        <!-- Question Builder Section -->
+        <div style="margin-bottom: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <h4 style="font-size: 0.95rem; font-weight: 700; margin: 0;">Questions List</h4>
+            <button type="button" class="btn btn-outline btn-sm" onclick="addQuestionToBuilder()">
+              <i class="fa-solid fa-plus"></i> Add Question
+            </button>
+          </div>
+
+          <div id="quiz-questions-builder-container" style="display: flex; flex-direction: column; gap: 1rem;">
+            <!-- Questions added dynamically -->
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.25rem;">
+          <button type="button" class="btn btn-outline btn-sm" onclick="closeModal('create-quiz-modal')">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-sm" id="btn-save-quiz">
+            <i class="fa-solid fa-check"></i> Publish Quiz & Auto-Sync Calendar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Take Quiz Focus Mode Modal (Student) -->
+  <div class="modal" id="take-quiz-modal" style="background: rgba(15, 23, 42, 0.95);">
+    <div class="modal-content" style="max-width: 900px; width: 95%; max-height: 95vh; display: flex; flex-direction: column; padding: 0; overflow: hidden;">
+      
+      <!-- Sticky Exam Header -->
+      <div style="padding: 1.2rem 1.5rem; background: var(--card-bg); border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h3 id="exam-modal-title" style="font-size: 1.15rem; font-weight: 700; margin: 0; color: var(--text-main);">Quiz Exam Title</h3>
+          <span id="exam-modal-subtitle" style="font-size: 0.8rem; color: var(--text-muted);">ClassSync Timed Assessment</span>
+        </div>
+
+        <!-- Floating Live Countdown Timer -->
+        <div id="exam-timer-container" class="countdown-pill countdown-normal" style="font-size: 1.1rem; padding: 0.5rem 1rem; border-radius: 2rem;">
+          <i class="fa-solid fa-stopwatch"></i>
+          <span id="exam-timer-display" style="font-weight: 800; font-family: monospace;">15:00</span>
+        </div>
+      </div>
+
+      <!-- Exam Layout Grid (Main Questions & Question Navigator Sidebar) -->
+      <div style="display: grid; grid-template-columns: 1fr 240px; flex: 1; overflow: hidden;">
+        
+        <!-- Main Questions Container -->
+        <div style="padding: 1.5rem; overflow-y: auto;" id="exam-questions-scroll-area">
+          <div id="exam-questions-list">
+            <!-- Questions rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- Question Navigator Sidebar -->
+        <div style="padding: 1.25rem; background: var(--bg-color); border-left: 1px solid var(--border-color); display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <h5 style="font-size: 0.85rem; font-weight: 700; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">Question Navigator</h5>
+            <div id="exam-nav-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem;">
+              <!-- Question numbers Q1, Q2, Q3 rendered dynamically -->
+            </div>
+          </div>
+
+          <div style="margin-top: 1.5rem; text-align: center;">
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+              <i class="fa-solid fa-floppy-disk"></i> Answers auto-save in real-time.
+            </p>
+            <button class="btn btn-primary" id="btn-submit-exam" onclick="confirmSubmitExam()" style="width: 100%;">
+              <i class="fa-solid fa-paper-plane"></i> Submit Exam
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Quiz Leaderboard & Score Review Modal -->
+  <div class="modal" id="quiz-results-modal">
+    <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; margin: 0;">
+          <i class="fa-solid fa-trophy" style="color: var(--status-amber);"></i> <span id="results-modal-quiz-title">Quiz Leaderboard & Results</span>
+        </h3>
+        <button class="modal-close" onclick="closeModal('quiz-results-modal')">&times;</button>
+      </div>
+
+      <div id="results-modal-body">
+        <div class="empty-state" style="padding: 2rem;">
+          <i class="fa-solid fa-spinner fa-spin fa-2x"></i>
+          <p>Loading results...</p>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="/js/api.js"></script>
   <script src="/js/navbar.js"></script>

@@ -175,10 +175,42 @@ const getMyAlerts = async (req, res) => {
   }
 };
 
+// POST /api/alerts/nudge - Send reminder nudge to at-risk learner
+const nudgeLearner = async (req, res) => {
+  try {
+    const { learner_id, classroom_id, message } = req.body;
+    const instructorId = req.user.user_id;
+
+    if (!learner_id || !classroom_id) {
+      return res.status(400).json({ success: false, message: 'learner_id and classroom_id are required' });
+    }
+
+    if (!(await isInstructorOrTA(instructorId, classroom_id))) {
+      return res.status(403).json({ success: false, message: 'Only instructors or TAs can send nudges' });
+    }
+
+    const nudgeMsg = message || 'Your instructor noticed you have upcoming or pending assignments. Please check your classroom portal to stay on track!';
+
+    await createNotification(
+      learner_id,
+      'alert',
+      '⏰ Instructor Study Reminder Nudge',
+      nudgeMsg,
+      `/classroom.html?id=${classroom_id}`
+    );
+
+    res.json({ success: true, message: 'Nudge notification sent to learner' });
+  } catch (error) {
+    console.error('Error sending nudge:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   createLearnerAlert,
   getClassroomAlerts,
   resolveAlert,
   clearLearnerAlerts,
-  getMyAlerts
+  getMyAlerts,
+  nudgeLearner
 };

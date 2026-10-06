@@ -1,3 +1,5 @@
+let classroomData = null;
+
 document.addEventListener('DOMContentLoaded', async () => {
   const token = getAuthToken();
   if (!token) {
@@ -21,7 +23,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   document.getElementById('leaderboard-link').href = `/leaderboard.html?id=${classroomId}`;
 
-  let classroomData = null;
 
   // Sidebar tab navigation setup
   const sidebarItems = document.querySelectorAll('.sidebar-item');
@@ -40,6 +41,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       } catch (e) {}
 
       if (tabName === 'tab-homework') loadHomeworkTab();
+      if (tabName === 'tab-quizzes') loadQuizzesTab();
       if (tabName === 'tab-matrix') loadMatrixTab();
       if (tabName === 'tab-health') loadHealthTab();
       if (tabName === 'tab-members') loadMembersTab();
@@ -2440,5 +2442,881 @@ window.deleteLiveSessionItem = async (sessionId) => {
     showToast(err.message, 'error');
   }
 };
+
+// --- COURSE QUIZZES & EXAM CENTER LOGIC ---
+let activeExamTimerInterval = null;
+let activeExamState = null;
+let preStartCountdownInterval = null;
+let questionCount = 0;
+
+function closeModal(modalId) {
+  const m = document.getElementById(modalId);
+  if (m) m.classList.remove('active');
+}
+window.closeModal = closeModal;
+
+function openModal(modalId) {
+  const m = document.getElementById(modalId);
+  if (m) m.classList.add('active');
+}
+window.openModal = openModal;
+
+const loadQuizzesTab = async () => {
+  const container = document.getElementById('course-quizzes-list');
+  const createBtn = document.getElementById('course-open-create-quiz-btn');
+  if (!container) return;
+
+  container.innerHTML = renderSkeletonRows(2);
+
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const classroomId = urlParams.get('id');
+
+    if (!classroomData && classroomId) {
+      try {
+        const clsRes = await apiFetch(`/classrooms/${classroomId}`);
+        if (clsRes && clsRes.data) {
+          classroomData = clsRes.data;
+          window.classroomData = clsRes.data;
+        }
+      } catch (e) {}
+    }
+
+    const userRole = (classroomData?.user_role || window.classroomData?.user_role || '').toLowerCase();
+    const isInstructor = userRole === 'instructor' || userRole === 'ta';
+
+    if (createBtn) {
+      createBtn.style.display = isInstructor ? 'inline-flex' : 'none';
+    }
+
+    const res = await apiFetch(`/quizzes/classroom/${classroomId}`);
+    const quizzes = (res && res.success) ? res.quizzes : [];
+
+    if (quizzes.length === 0) {
+      container.innerHTML = renderEmptyState({
+        icon: 'pen-to-square',
+        title: 'No Quizzes or Exams Published',
+        message: isInstructor
+          ? 'Publish your first timed quiz or live exam for this classroom.'
+          : 'No quizzes or exams have been published for this course yet.',
+        actionText: isInstructor ? '<i class="fa-solid fa-plus"></i> Create Quiz / Exam' : null,
+        actionOnClick: isInstructor ? 'openCreateQuizModal()' : null,
+        actionFn: isInstructor ? () => openCreateQuizModal() : null
+      });
+      return;
+    }
+
+    container.innerHTML = quizzes.map(q => {
+      const typeBadge = q.quiz_type === 'live' 
+        ? `<span class="badge badge-yellow" style="font-weight: 700;"><i class="fa-solid fa-bolt"></i> Scheduled Live Exam</span>`
+        : `<span class="badge badge-blue" style="font-weight: 700;"><i class="fa-solid fa-stopwatch"></i> Flexible Window</span>`;
+
+      let statusBadge = '';
+      let actionBtn = '';
+
+      if (q.attempt_status === 'submitted' || q.attempt_status === 'time_expired') {
+        const scoreDisplay = q.approval_status === 'pending' ? 'Pending Teacher Approval' : `${q.total_score} / ${q.total_marks} Pts`;
+        statusBadge = `<span class="badge badge-green">✅ Completed (${scoreDisplay})</span>`;
+        actionBtn = `<button class="btn btn-outline btn-sm" onclick="openQuizLeaderboard(${q.quiz_id})"><i class="fa-solid fa-chart-line"></i> View Results</button>`;
+      } else if (q.attempt_status === 'in_progress') {
+        statusBadge = `<span class="badge badge-yellow">⏳ In Progress</span>`;
+        actionBtn = `<button class="btn btn-primary btn-sm" onclick="startQuizExam(${q.quiz_id})"><i class="fa-solid fa-play"></i> Resume Exam</button>`;
+      } else if (!q.is_available) {
+        if (q.window_status === 'upcoming') {
+          statusBadge = `<span class="badge badge-gray">🔒 Upcoming (Opens Soon)</span>`;
+          actionBtn = `<button class="btn btn-outline btn-sm" onclick="startQuizExam(${q.quiz_id})"><i class="fa-solid fa-clock"></i> Check Countdown</button>`;
+        } else {
+          statusBadge = `<span class="badge badge-red">🔴 Closed / Expired</span>`;
+          actionBtn = `<button class="btn btn-outline btn-sm" onclick="openQuizLeaderboard(${q.quiz_id})"><i class="fa-solid fa-chart-line"></i> Leaderboard</button>`;
+        }
+      } else {
+        statusBadge = `<span class="badge badge-green">🟢 Ready to Take</span>`;
+        actionBtn = `<button class="btn btn-primary btn-sm" onclick="startQuizExam(${q.quiz_id})"><i class="fa-solid fa-rocket"></i> Start Exam</button>`;
+      }
+
+      if (isInstructor) {
+        actionBtn += ` <button class="btn btn-outline btn-sm" onclick="openQuizLeaderboard(${q.quiz_id})"><i class="fa-solid fa-trophy"></i> Results & Approve</button>`;
+      }
+
+      const startTimeStr = q.start_time ? new Date(q.start_time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Anytime';
+      const endTimeStr = q.end_time ? new Date(q.end_time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'No Expiry';
+
+      return `
+        <div class="card" style="display: flex; flex-direction: column; justify-content: space-between; padding: 1.25rem;">
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
+              ${typeBadge}
+              ${statusBadge}
+            </div>
+            <h4 style="font-weight: 700; font-size: 1.05rem; margin-bottom: 0.35rem; color: var(--text-main);">${escapeHtml(q.title)}</h4>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem;">${escapeHtml(q.description || 'No instructions provided.')}</p>
+            
+            <div style="font-size: 0.8rem; color: var(--text-muted); background: var(--bg-body); padding: 0.65rem; border-radius: 0.5rem; margin-bottom: 1rem; border: 1px solid var(--border-color);">
+              <div><i class="fa-solid fa-clock"></i> <strong>Duration:</strong> ${q.duration_minutes} Mins</div>
+              <div><i class="fa-solid fa-star"></i> <strong>Total Marks:</strong> ${q.total_marks} Pts</div>
+              <div><i class="fa-solid fa-calendar"></i> <strong>Window:</strong> ${startTimeStr} - ${endTimeStr}</div>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            ${actionBtn}
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error('Error loading course quizzes:', err);
+    container.innerHTML = `<div class="card"><p style="color: var(--status-red);">Error: ${err.message}</p></div>`;
+  }
+};
+
+function openCreateQuizModal() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const classroomId = urlParams.get('id');
+  const inputEl = document.getElementById('quiz-classroom-id-val');
+  if (inputEl) inputEl.value = classroomId;
+
+  const form = document.getElementById('create-quiz-form');
+  if (form) form.reset();
+  const builder = document.getElementById('quiz-questions-builder-container');
+  if (builder) builder.innerHTML = '';
+  questionCount = 0;
+  addQuestionToBuilder();
+  openModal('create-quiz-modal');
+}
+window.openCreateQuizModal = openCreateQuizModal;
+
+function addQuestionToBuilder() {
+  questionCount++;
+  const container = document.getElementById('quiz-questions-builder-container');
+  if (!container) return;
+
+  const qId = questionCount;
+  const div = document.createElement('div');
+  div.id = `q-block-${qId}`;
+  div.style.cssText = 'background: var(--bg-body); padding: 1rem; border-radius: 0.65rem; border: 1px solid var(--border-color);';
+
+  div.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.65rem;">
+      <strong style="font-size: 0.875rem; color: var(--primary-color);">Question #${qId}</strong>
+      ${qId > 1 ? `<button type="button" class="btn btn-outline btn-sm" onclick="removeQuestionFromBuilder(${qId})" style="color: var(--status-red);"><i class="fa-solid fa-trash"></i> Remove</button>` : ''}
+    </div>
+
+    <div class="form-group" style="margin-bottom: 0.65rem;">
+      <input type="text" class="form-control q-text-input" placeholder="Enter Question Prompt (e.g. Write a function to reverse a string in Python)" required>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.65rem;">
+      <div>
+        <label style="font-size: 0.75rem; font-weight: 600;">Question Type</label>
+        <select class="form-control q-type-input" onchange="onQuestionTypeChange(${qId})">
+          <option value="mcq">Multiple Choice (MCQ)</option>
+          <option value="true_false">True / False</option>
+          <option value="coding">💻 Coding Question (Auto-Evaluated)</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size: 0.75rem; font-weight: 600;">Points / Marks</label>
+        <input type="number" class="form-control q-points-input" value="10" min="1" required>
+      </div>
+    </div>
+
+    <!-- MCQ Options Container -->
+    <div id="q-mcq-container-${qId}" style="background: var(--card-bg); padding: 0.75rem; border-radius: 0.5rem; border: 1px solid var(--border-color);">
+      <label style="font-size: 0.75rem; font-weight: 700; margin-bottom: 0.5rem; display: block;">Options (Select Radio for Correct Answer) *</label>
+      <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <input type="radio" name="correct_opt_${qId}" value="0" checked>
+          <input type="text" class="form-control q-opt-input" placeholder="Option A (Correct answer)" required>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <input type="radio" name="correct_opt_${qId}" value="1">
+          <input type="text" class="form-control q-opt-input" placeholder="Option B" required>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <input type="radio" name="correct_opt_${qId}" value="2">
+          <input type="text" class="form-control q-opt-input" placeholder="Option C" required>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <input type="radio" name="correct_opt_${qId}" value="3">
+          <input type="text" class="form-control q-opt-input" placeholder="Option D" required>
+        </div>
+      </div>
+    </div>
+
+    <!-- Coding Question Configuration Container (Hidden by default) -->
+    <div id="q-coding-container-${qId}" style="display: none; background: var(--card-bg); padding: 0.75rem; border-radius: 0.5rem; border: 1px solid var(--border-color);">
+      <div style="font-size: 0.75rem; color: var(--text-muted); background: var(--bg-body); padding: 0.5rem 0.75rem; border-radius: 0.4rem; border: 1px solid var(--border-color); margin-bottom: 0.75rem;">
+        <i class="fa-solid fa-circle-info" style="color: var(--primary-color);"></i> <strong>Multi-Language Support:</strong> Students will select their preferred programming language (Python, C++, Java, JS, Go, Rust, etc.) while taking the exam.
+      </div>
+
+      <div class="form-group" style="margin-bottom: 0.5rem;">
+        <label style="font-size: 0.75rem; font-weight: 600;">Starter Template Code (Optional)</label>
+        <textarea class="form-control q-starter-input" rows="2" placeholder="def solution(s):\n    # Write your code here\n    pass"></textarea>
+      </div>
+
+      <!-- Test Cases Manager -->
+      <div style="margin-top: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <label style="font-size: 0.8rem; font-weight: 700; color: var(--primary-color);">
+            <i class="fa-solid fa-vials"></i> Auto-Evaluation Test Cases *
+          </label>
+          <button type="button" class="btn btn-outline btn-sm" onclick="addTestCaseToQuestion(${qId})" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;">
+            <i class="fa-solid fa-plus"></i> Add Test Case
+          </button>
+        </div>
+        <div id="q-tc-list-container-${qId}">
+          <!-- Test case blocks added dynamically -->
+        </div>
+      </div>
+    </div>
+  `;
+
+  container.appendChild(div);
+  addTestCaseToQuestion(qId);
+}
+window.addQuestionToBuilder = addQuestionToBuilder;
+
+function addTestCaseToQuestion(qId) {
+  const container = document.getElementById(`q-tc-list-container-${qId}`);
+  if (!container) return;
+
+  const tcCount = container.children.length + 1;
+  const div = document.createElement('div');
+  div.className = 'tc-item-block';
+  div.style.cssText = 'background: var(--bg-body); padding: 0.65rem; border-radius: 0.5rem; border: 1px solid var(--border-color); margin-bottom: 0.5rem;';
+
+  div.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+      <strong style="font-size: 0.78rem; color: var(--primary-color);">Test Case #${tcCount}</strong>
+      <div style="display: flex; gap: 0.75rem; align-items: center;">
+        <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.75rem; cursor: pointer; margin: 0; color: var(--text-main);">
+          <input type="checkbox" class="tc-hidden-input" style="width: 14px; height: 14px; cursor: pointer;">
+          <span>🔒 Hidden Test Case</span>
+        </label>
+        ${tcCount > 1 ? `<button type="button" class="btn btn-outline btn-sm" onclick="this.closest('.tc-item-block').remove()" style="padding: 0.15rem 0.4rem; color: var(--status-red); font-size: 0.7rem; border-color: var(--status-red);"><i class="fa-solid fa-trash"></i> Delete</button>` : ''}
+      </div>
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+      <div>
+        <label style="font-size: 0.7rem; color: var(--text-muted); display: block; font-weight: 600;">Input (stdin)</label>
+        <textarea class="form-control q-tc-input" rows="2" placeholder="e.g. 5\n1 2 3 4 5" style="font-family: monospace; font-size: 0.8rem;"></textarea>
+      </div>
+      <div>
+        <label style="font-size: 0.7rem; color: var(--text-muted); display: block; font-weight: 600;">Expected Output (stdout) *</label>
+        <textarea class="form-control q-tc-expected" rows="2" placeholder="e.g. 15" style="font-family: monospace; font-size: 0.8rem;" required></textarea>
+      </div>
+    </div>
+  `;
+
+  container.appendChild(div);
+}
+window.addTestCaseToQuestion = addTestCaseToQuestion;
+
+function onQuestionTypeChange(qId) {
+  const block = document.getElementById(`q-block-${qId}`);
+  if (!block) return;
+  const qType = block.querySelector('.q-type-input').value;
+
+  const mcqContainer = document.getElementById(`q-mcq-container-${qId}`);
+  const codingContainer = document.getElementById(`q-coding-container-${qId}`);
+
+  if (qType === 'coding') {
+    if (mcqContainer) mcqContainer.style.display = 'none';
+    if (codingContainer) codingContainer.style.display = 'block';
+
+    block.querySelectorAll('.q-opt-input').forEach(i => i.removeAttribute('required'));
+  } else {
+    if (mcqContainer) mcqContainer.style.display = 'block';
+    if (codingContainer) codingContainer.style.display = 'none';
+
+    block.querySelectorAll('.q-opt-input').forEach(i => i.setAttribute('required', 'true'));
+  }
+}
+window.onQuestionTypeChange = onQuestionTypeChange;
+
+function removeQuestionFromBuilder(qId) {
+  const el = document.getElementById(`q-block-${qId}`);
+  if (el) el.remove();
+}
+window.removeQuestionFromBuilder = removeQuestionFromBuilder;
+
+async function handleCourseCreateQuizSubmit(event) {
+  event.preventDefault();
+  const classroom_id = document.getElementById('quiz-classroom-id-val').value;
+  const title = document.getElementById('quiz-title-input').value.trim();
+  const description = document.getElementById('quiz-desc-input').value.trim();
+  const duration_minutes = parseInt(document.getElementById('quiz-duration-input').value, 10);
+  const start_time = document.getElementById('quiz-start-input').value;
+  const end_time = document.getElementById('quiz-end-input').value;
+
+  const quiz_type = document.querySelector('input[name="quiz_type_radio"]:checked').value;
+
+  const qBlocks = document.querySelectorAll('#quiz-questions-builder-container > div');
+  if (qBlocks.length === 0) {
+    showToast('Please add at least 1 question.', 'error');
+    return;
+  }
+
+  const questions = [];
+  qBlocks.forEach((block, idx) => {
+    const qText = block.querySelector('.q-text-input').value.trim();
+    const qType = block.querySelector('.q-type-input').value;
+    const qPoints = parseInt(block.querySelector('.q-points-input').value, 10);
+
+    if (qType === 'coding') {
+      const starter = block.querySelector('.q-starter-input').value;
+      
+      const tcBlocks = block.querySelectorAll('.tc-item-block');
+      const test_cases = [];
+      tcBlocks.forEach(tcBlock => {
+        const inputData = tcBlock.querySelector('.q-tc-input').value;
+        const expectedOutput = tcBlock.querySelector('.q-tc-expected').value;
+        const isHidden = tcBlock.querySelector('.tc-hidden-input')?.checked || false;
+
+        if (expectedOutput.trim()) {
+          test_cases.push({
+            input_data: inputData,
+            expected_output: expectedOutput,
+            is_hidden: isHidden,
+            points: Math.max(1, Math.floor(qPoints / (tcBlocks.length || 1)))
+          });
+        }
+      });
+
+      questions.push({
+        question_text: qText,
+        question_type: 'coding',
+        coding_language: 'python',
+        starter_code: starter,
+        points: qPoints,
+        test_cases
+      });
+    } else {
+      const optInputs = block.querySelectorAll('.q-opt-input');
+      const correctRadio = block.querySelector(`input[name^="correct_opt_"]:checked`);
+      const correctIdx = correctRadio ? parseInt(correctRadio.value, 10) : 0;
+
+      const options = [];
+      optInputs.forEach((optIn, oIdx) => {
+        const txt = optIn.value.trim();
+        if (txt) {
+          options.push({
+            option_text: txt,
+            is_correct: oIdx === correctIdx
+          });
+        }
+      });
+
+      questions.push({
+        question_text: qText,
+        question_type: qType,
+        points: qPoints,
+        options
+      });
+    }
+  });
+
+  const btn = document.getElementById('btn-save-quiz');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Publishing...'; }
+
+  try {
+    const res = await apiFetch('/quizzes/create', {
+      method: 'POST',
+      body: JSON.stringify({
+        classroom_id,
+        title,
+        description,
+        quiz_type,
+        duration_minutes,
+        start_time: start_time || null,
+        end_time: end_time || null,
+        questions
+      })
+    });
+
+    if (res && res.success) {
+      showToast('🎉 Quiz published and marked on Academic Calendar!', 'success');
+      closeModal('create-quiz-modal');
+      await loadQuizzesTab();
+    } else {
+      showToast(res.message || 'Failed to create quiz.', 'error');
+    }
+  } catch (err) {
+    console.error('Create quiz error:', err);
+    showToast(err.message || 'Error publishing quiz.', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Publish Quiz & Auto-Sync Calendar'; }
+  }
+}
+window.handleCourseCreateQuizSubmit = handleCourseCreateQuizSubmit;
+
+// --- EXAM EXECUTION & PRE-START COUNTDOWN FOCUS MODE ---
+async function startQuizExam(quizId) {
+  try {
+    const res = await apiFetch(`/quizzes/${quizId}/start`, { method: 'POST' });
+    if (!res || !res.success) {
+      showToast(res.message || 'Cannot start exam.', 'error');
+      return;
+    }
+
+    // Check if exam is not started yet
+    if (res.not_started) {
+      renderPreStartCountdownModal(res);
+      openModal('take-quiz-modal');
+      return;
+    }
+
+    const { attempt_id, quiz, remaining_seconds, questions, savedAnswers } = res;
+
+    activeExamState = {
+      attemptId: attempt_id,
+      quizId,
+      remainingSeconds: remaining_seconds,
+      questions,
+      answersMap: {}
+    };
+
+    if (savedAnswers && Array.isArray(savedAnswers)) {
+      savedAnswers.forEach(sa => {
+        if (sa.selected_option_id) {
+          activeExamState.answersMap[sa.question_id] = sa.selected_option_id;
+        } else if (sa.answer_text) {
+          activeExamState.answersMap[sa.question_id] = sa.answer_text;
+        }
+      });
+    }
+
+    document.getElementById('exam-modal-title').textContent = quiz.title;
+    document.getElementById('exam-modal-subtitle').textContent = `${quiz.quiz_type === 'live' ? '⚡ Scheduled Live Exam' : '⏱️ Flexible Window Quiz'} • ${quiz.total_marks} Marks`;
+
+    renderExamQuestions(questions);
+    renderQuestionNavigator(questions);
+    startExamTimer(remaining_seconds);
+
+    window.addEventListener('beforeunload', handleExamBeforeUnload);
+
+    openModal('take-quiz-modal');
+  } catch (err) {
+    console.error('Start quiz exam error:', err);
+    showToast(err.message || 'Failed to start exam.', 'error');
+  }
+}
+window.startQuizExam = startQuizExam;
+
+function renderPreStartCountdownModal(data) {
+  const { quiz, start_time, seconds_until_start } = data;
+  const container = document.getElementById('exam-questions-scroll-area');
+  const navGrid = document.getElementById('exam-nav-grid');
+
+  document.getElementById('exam-modal-title').textContent = quiz.title;
+  document.getElementById('exam-modal-subtitle').textContent = `🔒 Scheduled Live Exam (Opens at ${new Date(start_time).toLocaleString()})`;
+
+  if (navGrid) navGrid.innerHTML = '<span style="font-size:0.75rem; color:var(--text-muted);">Locked until start time</span>';
+
+  let secLeft = seconds_until_start;
+
+  const updatePreStartDisplay = () => {
+    if (secLeft <= 0) {
+      if (preStartCountdownInterval) clearInterval(preStartCountdownInterval);
+      showToast('⚡ Exam time has started! Refreshing questions...', 'success');
+      startQuizExam(quiz.quiz_id);
+      return;
+    }
+
+    const hrs = Math.floor(secLeft / 3600);
+    const mins = Math.floor((secLeft % 3600) / 60);
+    const secs = secLeft % 60;
+
+    const timeStr = `${hrs > 0 ? `${hrs}h ` : ''}${mins}m ${secs}s`;
+
+    container.innerHTML = `
+      <div class="card" style="text-align: center; padding: 3rem 2rem;">
+        <i class="fa-solid fa-lock fa-3x" style="color: var(--status-amber); margin-bottom: 1rem;"></i>
+        <h3 style="font-size: 1.3rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--text-main);">Exam Has Not Started Yet</h3>
+        <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1.5rem;">
+          This scheduled live exam will open automatically when the start time arrives.
+        </p>
+
+        <div style="display: inline-block; background: var(--bg-body); padding: 1rem 2rem; border-radius: 1rem; border: 1px solid var(--border-color); margin-bottom: 1.5rem;">
+          <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Time Remaining Until Start</div>
+          <div style="font-size: 2.2rem; font-weight: 800; color: var(--primary-color); font-family: monospace;">${timeStr}</div>
+        </div>
+
+        <div>
+          <button class="btn btn-outline" onclick="closeModal('take-quiz-modal')">Close Window</button>
+        </div>
+      </div>
+    `;
+  };
+
+  updatePreStartDisplay();
+  if (preStartCountdownInterval) clearInterval(preStartCountdownInterval);
+  preStartCountdownInterval = setInterval(() => {
+    secLeft--;
+    updatePreStartDisplay();
+  }, 1000);
+}
+
+function handleExamBeforeUnload(e) {
+  if (activeExamState) {
+    e.preventDefault();
+    e.returnValue = 'Your exam is currently in progress. If you leave, your exam will be automatically submitted!';
+    return e.returnValue;
+  }
+}
+
+function renderExamQuestions(questions) {
+  const container = document.getElementById('exam-questions-scroll-area');
+  if (!container) return;
+
+  container.innerHTML = questions.map((q, idx) => {
+    const qNum = idx + 1;
+
+    if (q.question_type === 'coding') {
+      const savedCode = activeExamState.answersMap[q.question_id] || q.starter_code || '';
+
+      let tcHtml = '';
+      if (q.test_cases && q.test_cases.length > 0) {
+        tcHtml = `
+          <div style="margin-bottom: 1rem; background: var(--card-bg); padding: 0.85rem; border-radius: 0.5rem; border: 1px solid var(--border-color);">
+            <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase;">
+              <i class="fa-solid fa-vials"></i> Test Cases (${q.test_cases.length})
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+              ${q.test_cases.map((tc, tcIdx) => {
+                if (tc.is_hidden) {
+                  return `
+                    <div style="font-size: 0.8rem; padding: 0.5rem 0.75rem; background: var(--bg-body); border-radius: 0.4rem; border: 1px solid var(--border-color); color: var(--text-muted); display: flex; align-items: center; gap: 0.4rem;">
+                      <i class="fa-solid fa-lock" style="color: var(--status-orange);"></i> <strong>Test Case #${tcIdx + 1}:</strong> 🔒 Hidden Test Case (Auto-evaluated upon submission)
+                    </div>
+                  `;
+                }
+                return `
+                  <div style="font-size: 0.8rem; padding: 0.5rem 0.75rem; background: var(--bg-body); border-radius: 0.4rem; border: 1px solid var(--border-color);">
+                    <div style="font-weight: 700; color: var(--primary-color); margin-bottom: 0.25rem;">Test Case #${tcIdx + 1} (Sample)</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-family: monospace; font-size: 0.775rem;">
+                      <div><strong>Input:</strong> <code style="background: rgba(0,0,0,0.1); padding: 0.15rem 0.35rem; border-radius: 4px;">${escapeHtml(tc.input_data || '(empty)')}</code></div>
+                      <div><strong>Expected Output:</strong> <code style="background: rgba(0,0,0,0.1); padding: 0.15rem 0.35rem; border-radius: 4px;">${escapeHtml(tc.expected_output)}</code></div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <div id="exam-q-box-${q.question_id}" style="background: var(--bg-body); padding: 1.25rem; border-radius: 0.75rem; border: 1px solid var(--border-color); margin-bottom: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
+            <span class="badge badge-purple" style="font-weight: 700;">Question ${qNum} • 💻 Coding (${(q.coding_language || 'python').toUpperCase()})</span>
+            <span class="badge" style="background: var(--sidebar-active-bg); color: var(--primary-color);">${q.points} Points</span>
+          </div>
+          <h4 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 1rem; color: var(--text-main);">${escapeHtml(q.question_text)}</h4>
+          
+          ${tcHtml}
+
+          <div class="form-group" style="margin-top: 1rem;">
+            <label style="font-size: 0.8rem; font-weight: 600; margin-bottom: 0.35rem; display: block;">Your Solution Code</label>
+            <textarea id="exam-code-${q.question_id}" class="form-control" rows="8" style="font-family: monospace; font-size: 0.9rem;" oninput="onExamCodeInput(${q.question_id})">${escapeHtml(savedCode)}</textarea>
+          </div>
+        </div>
+      `;
+    }
+
+    const selectedOptId = activeExamState.answersMap[q.question_id];
+
+    const optionsHtml = (q.options || []).map(opt => {
+      const isChecked = selectedOptId === opt.option_id ? 'checked' : '';
+      return `
+        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.85rem 1rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 0.65rem; cursor: pointer; transition: border-color 0.2s;" class="quiz-option-label">
+          <input type="radio" name="exam_q_${q.question_id}" value="${opt.option_id}" ${isChecked} onchange="onExamOptionSelect(${q.question_id}, ${opt.option_id})" style="width: 18px; height: 18px;">
+          <span style="font-size: 0.95rem; color: var(--text-main);">${escapeHtml(opt.option_text)}</span>
+        </label>
+      `;
+    }).join('');
+
+    return `
+      <div id="exam-q-box-${q.question_id}" style="background: var(--bg-body); padding: 1.25rem; border-radius: 0.75rem; border: 1px solid var(--border-color); margin-bottom: 1.25rem;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
+          <span class="badge badge-blue" style="font-weight: 700;">Question ${qNum} of ${questions.length}</span>
+          <span class="badge" style="background: var(--sidebar-active-bg); color: var(--primary-color);">${q.points} Points</span>
+        </div>
+        <h4 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 1rem; color: var(--text-main);">${escapeHtml(q.question_text)}</h4>
+        <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+          ${optionsHtml}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderQuestionNavigator(questions) {
+  const navGrid = document.getElementById('exam-nav-grid');
+  if (!navGrid) return;
+
+  navGrid.innerHTML = questions.map((q, idx) => {
+    const qNum = idx + 1;
+    const isAnswered = Boolean(activeExamState.answersMap[q.question_id]);
+    const bgStyle = isAnswered ? 'background: var(--status-green); color: white;' : 'background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main);';
+
+    return `
+      <button id="nav-btn-q-${q.question_id}" onclick="scrollToQuestion(${q.question_id})" style="${bgStyle} font-weight: 700; padding: 0.5rem 0; border-radius: 0.4rem; cursor: pointer; transition: all 0.2s;">
+        Q${qNum}
+      </button>
+    `;
+  }).join('');
+}
+
+function scrollToQuestion(qId) {
+  const el = document.getElementById(`exam-q-box-${qId}`);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+async function onExamOptionSelect(qId, optId) {
+  if (!activeExamState) return;
+
+  activeExamState.answersMap[qId] = optId;
+
+  const navBtn = document.getElementById(`nav-btn-q-${qId}`);
+  if (navBtn) {
+    navBtn.style.cssText = 'background: var(--status-green); color: white; font-weight: 700; padding: 0.5rem 0; border-radius: 0.4rem; cursor: pointer;';
+  }
+
+  try {
+    await apiFetch(`/quizzes/attempt/${activeExamState.attemptId}/save-progress`, {
+      method: 'POST',
+      body: JSON.stringify({
+        question_id: qId,
+        selected_option_id: optId
+      })
+    });
+  } catch (err) {
+    console.error('Autosave error:', err);
+  }
+}
+
+async function onExamCodeInput(qId) {
+  if (!activeExamState) return;
+  const textarea = document.getElementById(`exam-code-${qId}`);
+  if (!textarea) return;
+
+  const codeVal = textarea.value;
+  activeExamState.answersMap[qId] = codeVal;
+
+  const navBtn = document.getElementById(`nav-btn-q-${qId}`);
+  if (navBtn) {
+    navBtn.style.cssText = codeVal.trim() ? 'background: var(--status-green); color: white; font-weight: 700; padding: 0.5rem 0; border-radius: 0.4rem; cursor: pointer;' : 'background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main); font-weight: 700; padding: 0.5rem 0; border-radius: 0.4rem; cursor: pointer;';
+  }
+
+  try {
+    await apiFetch(`/quizzes/attempt/${activeExamState.attemptId}/save-progress`, {
+      method: 'POST',
+      body: JSON.stringify({
+        question_id: qId,
+        answer_text: codeVal
+      })
+    });
+  } catch (err) {
+    console.error('Autosave error:', err);
+  }
+}
+
+function startExamTimer(initialSeconds) {
+  if (activeExamTimerInterval) clearInterval(activeExamTimerInterval);
+
+  let secondsLeft = initialSeconds;
+  updateTimerDisplay(secondsLeft);
+
+  activeExamTimerInterval = setInterval(() => {
+    secondsLeft--;
+    if (activeExamState) activeExamState.remainingSeconds = secondsLeft;
+    updateTimerDisplay(secondsLeft);
+
+    if (secondsLeft <= 0) {
+      clearInterval(activeExamTimerInterval);
+      showToast('⏰ Exam time expired! Auto-submitting answers...', 'warning');
+      executeAutoSubmitExam(true);
+    }
+  }, 1000);
+}
+
+function updateTimerDisplay(totalSec) {
+  const display = document.getElementById('exam-timer-display');
+  const pill = document.getElementById('exam-timer-container');
+  if (!display) return;
+
+  if (totalSec < 0) totalSec = 0;
+  const mins = Math.floor(totalSec / 60);
+  const secs = totalSec % 60;
+
+  display.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+  if (pill) {
+    if (totalSec <= 120) {
+      pill.className = 'countdown-pill countdown-urgent';
+    } else {
+      pill.className = 'countdown-pill countdown-normal';
+    }
+  }
+}
+
+function confirmSubmitExam() {
+  if (!activeExamState) return;
+  const answeredCount = Object.keys(activeExamState.answersMap).length;
+  const totalCount = activeExamState.questions.length;
+
+  if (confirm(`Are you sure you want to submit your exam?\nYou answered ${answeredCount} of ${totalCount} questions.`)) {
+    executeAutoSubmitExam(false);
+  }
+}
+
+async function executeAutoSubmitExam(isTimeExpired = false) {
+  if (!activeExamState) return;
+  const attemptId = activeExamState.attemptId;
+
+  if (activeExamTimerInterval) clearInterval(activeExamTimerInterval);
+  window.removeEventListener('beforeunload', handleExamBeforeUnload);
+
+  const answers = Object.keys(activeExamState.answersMap).map(qId => {
+    const val = activeExamState.answersMap[qId];
+    if (typeof val === 'number') {
+      return { question_id: parseInt(qId, 10), selected_option_id: val };
+    } else {
+      return { question_id: parseInt(qId, 10), answer_text: val };
+    }
+  });
+
+  try {
+    const res = await apiFetch(`/quizzes/attempt/${attemptId}/submit`, {
+      method: 'POST',
+      body: JSON.stringify({
+        answers,
+        is_time_expired: isTimeExpired
+      })
+    });
+
+    closeModal('take-quiz-modal');
+    activeExamState = null;
+
+    if (res && res.success) {
+      if (res.approval_status === 'pending') {
+        showToast('🎉 Exam Submitted! Coding answers submitted for teacher evaluation & approval.', 'success');
+      } else {
+        showToast(`🎉 Exam Submitted! Score: ${res.total_score} / ${res.total_marks}`, 'success');
+      }
+      await loadQuizzesTab();
+    } else {
+      showToast(res.message || 'Failed to submit exam.', 'error');
+    }
+  } catch (err) {
+    console.error('Submit exam error:', err);
+    showToast(err.message || 'Submission error.', 'error');
+  }
+}
+
+async function openQuizLeaderboard(quizId) {
+  const titleEl = document.getElementById('results-modal-quiz-title');
+  const bodyEl = document.getElementById('results-modal-body');
+  if (!bodyEl) return;
+
+  openModal('quiz-results-modal');
+  bodyEl.innerHTML = `
+    <div class="empty-state" style="padding: 2rem;">
+      <i class="fa-solid fa-spinner fa-spin fa-2x"></i>
+      <p style="margin-top: 0.5rem;">Loading leaderboard & results...</p>
+    </div>
+  `;
+
+  try {
+    const data = await apiFetch(`/quizzes/${quizId}/leaderboard`);
+    if (!data || !data.success) {
+      bodyEl.innerHTML = `<p>Failed to load leaderboard.</p>`;
+      return;
+    }
+
+    const { quiz, isStaff, leaderboard } = data;
+    if (titleEl) titleEl.textContent = `${quiz.title} - Leaderboard & Submissions`;
+
+    let rowsHtml = '';
+    if (!leaderboard || leaderboard.length === 0) {
+      rowsHtml = `<tr><td colspan="6" class="text-center" style="padding: 1rem;">No submissions yet.</td></tr>`;
+    } else {
+      rowsHtml = leaderboard.map((item, idx) => {
+        const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
+        const mins = item.duration_seconds ? `${Math.floor(item.duration_seconds / 60)}m ${item.duration_seconds % 60}s` : '-';
+        const isPending = item.approval_status === 'pending';
+
+        let scoreStr = item.total_score;
+        if (typeof item.total_score === 'number') {
+          scoreStr = `${item.total_score} / ${quiz.total_marks}`;
+        }
+
+        let approveBtn = '';
+        if (isStaff && isPending) {
+          approveBtn = `
+            <button class="btn btn-primary btn-sm" onclick="approveQuizGradeItem(${item.attempt_id}, ${quiz.quiz_id})">
+              <i class="fa-solid fa-check-double"></i> Approve Score
+            </button>
+          `;
+        }
+
+        return `
+          <tr style="border-bottom: 1px solid var(--border-color);">
+            <td style="padding: 0.75rem; font-weight: 700; text-align: center;">${medal}</td>
+            <td style="padding: 0.75rem; font-weight: 600;">${escapeHtml(item.full_name)}</td>
+            <td style="padding: 0.75rem; color: var(--primary-color); font-weight: 800;">${scoreStr}</td>
+            <td style="padding: 0.75rem; font-size: 0.85rem; color: var(--text-muted);">${mins}</td>
+            <td style="padding: 0.75rem;"><span class="badge ${isPending ? 'badge-yellow' : 'badge-green'}">${isPending ? 'Pending Teacher Approval' : 'Approved'}</span></td>
+            ${isStaff ? `<td style="padding: 0.75rem;">${approveBtn}</td>` : ''}
+          </tr>
+        `;
+      }).join('');
+    }
+
+    bodyEl.innerHTML = `
+      <div style="margin-bottom: 1.5rem;">
+        <h4 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.75rem;"><i class="fa-solid fa-trophy" style="color: var(--status-amber);"></i> Student Ranking & Leaderboard</h4>
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+            <thead>
+              <tr style="background: var(--bg-body); border-bottom: 2px solid var(--border-color);">
+                <th style="padding: 0.75rem; text-align: center;">Rank</th>
+                <th style="padding: 0.75rem;">Student Name</th>
+                <th style="padding: 0.75rem;">Score</th>
+                <th style="padding: 0.75rem;">Time Taken</th>
+                <th style="padding: 0.75rem;">Status</th>
+                ${isStaff ? '<th style="padding: 0.75rem;">Teacher Action</th>' : ''}
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    console.error('Leaderboard error:', err);
+    bodyEl.innerHTML = `<p>Error loading leaderboard.</p>`;
+  }
+}
+
+window.approveQuizGradeItem = async (attemptId, quizId) => {
+  try {
+    const res = await apiFetch(`/quizzes/attempt/${attemptId}/approve`, { method: 'POST' });
+    if (res && res.success) {
+      showToast('✅ Quiz grade approved and released to student!', 'success');
+      await openQuizLeaderboard(quizId);
+      await loadQuizzesTab();
+    } else {
+      showToast(res.message || 'Failed to approve grade.', 'error');
+    }
+  } catch (err) {
+    showToast(err.message || 'Approval error.', 'error');
+  }
+};
+
 
 

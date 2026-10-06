@@ -17,13 +17,10 @@
   <main class="container">
     <!-- View Navigation Switcher (for authenticated users) -->
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
-      <div style="display: flex; gap: 0.5rem; background: var(--card-bg); padding: 0.35rem; border-radius: 12px; border: 1px solid var(--border-color);">
-        <button id="view-browse-tab" class="btn btn-primary btn-sm active" style="border-radius: 8px;">
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <span class="badge badge-blue" style="font-size: 0.9rem; padding: 0.45rem 0.85rem; border-radius: 8px; font-weight: 600;">
           <i class="fa-solid fa-compass"></i> Discover Public Courses
-        </button>
-        <button id="view-dashboard-tab" class="btn btn-outline btn-sm auth-only" style="border-radius: 8px; display: none;">
-          <i class="fa-solid fa-gauge"></i> My Dashboard
-        </button>
+        </span>
       </div>
 
       <div style="display: flex; gap: 0.75rem;" class="auth-only">
@@ -71,32 +68,6 @@
         <!-- Render Public Course Cards / Skeletons -->
       </div>
     </section>
-
-    <!-- AUTHENTICATED DASHBOARD SECTION (Hidden by default or toggled) -->
-    <div id="section-dashboard" style="display: none;">
-
-      <!-- Instructor Section -->
-      <section style="margin-bottom: 2.5rem;">
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.25rem;">
-          <i class="fa-solid fa-chalkboard-user" style="color: var(--primary-color); font-size: 1.2rem;"></i>
-          <h2 style="font-size: 1.25rem; font-weight: 700;">Classrooms You Teach (Instructor)</h2>
-        </div>
-        <div class="grid" id="instructor-classrooms-grid">
-          <!-- Render Cards / Skeletons -->
-        </div>
-      </section>
-
-      <!-- Learner / TA Section -->
-      <section>
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.25rem;">
-          <i class="fa-solid fa-user-graduate" style="color: var(--status-green); font-size: 1.2rem;"></i>
-          <h2 style="font-size: 1.25rem; font-weight: 700;">Classrooms You Joined (Learner / TA)</h2>
-        </div>
-        <div class="grid" id="joined-classrooms-grid">
-          <!-- Render Cards / Skeletons -->
-        </div>
-      </section>
-    </div>
   </main>
 
   <!-- Create Classroom Modal -->

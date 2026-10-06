@@ -33,6 +33,7 @@ app.use('/api', require('./routes/messageRoutes'));
 app.use('/api', require('./routes/autoEvalRoutes'));
 app.use('/api', require('./routes/dashboardRoutes'));
 app.use('/api', require('./routes/cronRoutes'));
+app.use('/api', require('./routes/quizRoutes'));
 
 // Fallback to login.html if not authenticated, or index.html for static routes
 app.get('*', (req, res, next) => {
@@ -98,7 +99,7 @@ const autoInitSchema = async () => {
         // Ignore if already modified
       }
 
-      // Check if user_todos table exists
+      // Check if user_todos table exists & has due_time column
       try {
         const [todosTable] = await db.query(`SHOW TABLES LIKE 'user_todos'`);
         if (todosTable.length === 0) {
@@ -109,16 +110,143 @@ const autoInitSchema = async () => {
               \`title\` varchar(255) NOT NULL,
               \`priority\` enum('low','medium','high') NOT NULL DEFAULT 'medium',
               \`due_date\` date NULL,
+              \`due_time\` time NULL,
               \`completed\` boolean DEFAULT false,
+              \`reminder_sent\` boolean DEFAULT false,
               \`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP,
               \`updated_at\` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
               FOREIGN KEY (\`user_id\`) REFERENCES \`users\` (\`user_id\`) ON DELETE CASCADE
             )
           `);
           console.log('✅ Created "user_todos" table automatically.');
+        } else {
+          try {
+            await db.query(`ALTER TABLE user_todos ADD COLUMN due_time TIME NULL AFTER due_date`);
+          } catch (e) {}
+          try {
+            await db.query(`ALTER TABLE user_todos ADD COLUMN reminder_sent BOOLEAN DEFAULT false AFTER completed`);
+          } catch (e) {}
         }
       } catch (tErr) {
         console.warn('user_todos check warning:', tErr.message);
+      }
+
+      // Check and auto-create quiz tables if missing
+      try {
+        const [quizTable] = await db.query(`SHOW TABLES LIKE 'quizzes'`);
+        if (quizTable.length === 0) {
+          await db.query(`
+            CREATE TABLE \`quizzes\` (
+              \`quiz_id\` int PRIMARY KEY AUTO_INCREMENT,
+              \`classroom_id\` int NOT NULL,
+              \`created_by\` int NOT NULL,
+              \`title\` varchar(255) NOT NULL,
+              \`description\` text NULL,
+              \`quiz_type\` enum('live','flexible') NOT NULL DEFAULT 'flexible',
+              \`duration_minutes\` int NOT NULL DEFAULT 15,
+              \`start_time\` datetime NULL,
+              \`end_time\` datetime NULL,
+              \`total_marks\` int DEFAULT 0,
+              \`is_published\` boolean DEFAULT true,
+              \`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP,
+              \`updated_at\` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              FOREIGN KEY (\`classroom_id\`) REFERENCES \`classrooms\` (\`classroom_id\`) ON DELETE CASCADE,
+              FOREIGN KEY (\`created_by\`) REFERENCES \`users\` (\`user_id\`) ON DELETE CASCADE
+            )
+          `);
+          await db.query(`
+            CREATE TABLE \`quiz_questions\` (
+              \`question_id\` int PRIMARY KEY AUTO_INCREMENT,
+              \`quiz_id\` int NOT NULL,
+              \`question_text\` text NOT NULL,
+              \`question_type\` enum('mcq','true_false','short_answer') NOT NULL DEFAULT 'mcq',
+              \`points\` int DEFAULT 5,
+              \`order_number\` int DEFAULT 0,
+              \`created_at\` timestamp DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY (\`quiz_id\`) REFERENCES \`quizzes\` (\`quiz_id\`) ON DELETE CASCADE
+            )
+          `);
+          await db.query(`
+            CREATE TABLE \`quiz_options\` (
+              \`option_id\` int PRIMARY KEY AUTO_INCREMENT,
+              \`question_id\` int NOT NULL,
+              \`option_text\` varchar(500) NOT NULL,
+              \`is_correct\` boolean DEFAULT false,
+              FOREIGN KEY (\`question_id\`) REFERENCES \`quiz_questions\` (\`question_id\`) ON DELETE CASCADE
+            )
+          `);
+          await db.query(`
+            CREATE TABLE \`quiz_attempts\` (
+              \`attempt_id\` int PRIMARY KEY AUTO_INCREMENT,
+              \`quiz_id\` int NOT NULL,
+              \`learner_id\` int NOT NULL,
+              \`started_at\` timestamp DEFAULT CURRENT_TIMESTAMP,
+              \`submitted_at\` timestamp NULL,
+              \`status\` enum('in_progress','submitted','time_expired') DEFAULT 'in_progress',
+              \`total_score\` decimal(5,2) DEFAULT 0.00,
+              FOREIGN KEY (\`quiz_id\`) REFERENCES \`quizzes\` (\`quiz_id\`) ON DELETE CASCADE,
+              FOREIGN KEY (\`learner_id\`) REFERENCES \`users\` (\`user_id\`) ON DELETE CASCADE
+            )
+          `);
+          await db.query(`
+            CREATE TABLE \`quiz_answers\` (
+              \`answer_id\` int PRIMARY KEY AUTO_INCREMENT,
+              \`attempt_id\` int NOT NULL,
+              \`question_id\` int NOT NULL,
+              \`selected_option_id\` int NULL,
+              \`answer_text\` text NULL,
+              \`is_correct\` boolean NULL,
+              \`marks_awarded\` decimal(5,2) DEFAULT 0.00,
+              FOREIGN KEY (\`attempt_id\`) REFERENCES \`quiz_attempts\` (\`attempt_id\`) ON DELETE CASCADE,
+              FOREIGN KEY (\`question_id\`) REFERENCES \`quiz_questions\` (\`question_id\`) ON DELETE CASCADE,
+              FOREIGN KEY (\`selected_option_id\`) REFERENCES \`quiz_options\` (\`option_id\`) ON DELETE SET NULL
+            )
+          `);
+          await db.query(`
+            CREATE TABLE \`quiz_test_cases\` (
+              \`test_case_id\` int PRIMARY KEY AUTO_INCREMENT,
+              \`question_id\` int NOT NULL,
+              \`input_data\` text NULL,
+              \`expected_output\` text NOT NULL,
+              \`points\` int DEFAULT 1,
+              FOREIGN KEY (\`question_id\`) REFERENCES \`quiz_questions\` (\`question_id\`) ON DELETE CASCADE
+            )
+          `);
+          console.log('✅ Created "quizzes", "quiz_questions", "quiz_options", "quiz_attempts", "quiz_answers", "quiz_test_cases" tables automatically.');
+        } else {
+          try {
+            await db.query(`ALTER TABLE quiz_questions MODIFY COLUMN question_type ENUM('mcq','true_false','short_answer','coding') NOT NULL DEFAULT 'mcq'`);
+          } catch(e){}
+          try {
+            await db.query(`ALTER TABLE quiz_questions ADD COLUMN coding_language VARCHAR(50) DEFAULT 'python' AFTER question_type`);
+          } catch(e){}
+          try {
+            await db.query(`ALTER TABLE quiz_questions ADD COLUMN starter_code TEXT NULL AFTER coding_language`);
+          } catch(e){}
+          try {
+            await db.query(`ALTER TABLE quiz_attempts ADD COLUMN approval_status ENUM('approved','pending') DEFAULT 'approved' AFTER status`);
+          } catch(e){}
+          try {
+            await db.query(`
+              CREATE TABLE IF NOT EXISTS \`quiz_test_cases\` (
+                \`test_case_id\` int PRIMARY KEY AUTO_INCREMENT,
+                \`question_id\` int NOT NULL,
+                \`input_data\` text NULL,
+                \`expected_output\` text NOT NULL,
+                \`points\` int DEFAULT 1,
+                FOREIGN KEY (\`question_id\`) REFERENCES \`quiz_questions\` (\`question_id\`) ON DELETE CASCADE
+              )
+            `);
+          } catch(e){}
+          try {
+            await db.query(`ALTER TABLE quiz_answers ADD COLUMN coding_language VARCHAR(50) NULL AFTER answer_text`);
+          } catch(e){}
+          try {
+            await db.query(`ALTER TABLE quiz_test_cases ADD COLUMN is_hidden BOOLEAN DEFAULT false AFTER expected_output`);
+          } catch(e){}
+        }
+      } catch (qErr) {
+        console.warn('Quiz tables check warning:', qErr.message);
       }
     }
   } catch (err) {

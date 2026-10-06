@@ -15,6 +15,8 @@ const PAIZA_LANG_MAP = {
   'javascript': 'javascript',
   'js':         'javascript',
   'nodejs':     'javascript',
+  'typescript': 'typescript',
+  'ts':         'typescript',
   'c':          'c',
   'c++':        'cpp',
   'cpp':        'cpp',
@@ -22,20 +24,28 @@ const PAIZA_LANG_MAP = {
   'csharp':     'csharp',
   'cs':         'csharp',
   'go':         'go',
+  'golang':     'go',
   'ruby':       'ruby',
-  'php':        'php'
+  'php':        'php',
+  'rust':       'rust',
+  'swift':      'swift',
+  'kotlin':     'kotlin'
 };
 
 const SUPPORTED_LANGUAGES = {
   'python':     { language: 'Python 3',     version: '3.x' },
   'javascript': { language: 'JavaScript',   version: 'Node.js' },
+  'typescript': { language: 'TypeScript',   version: 'latest' },
   'cpp':        { language: 'C++',          version: 'GCC' },
   'c':          { language: 'C',            version: 'GCC' },
   'java':       { language: 'Java',         version: 'OpenJDK' },
   'csharp':     { language: 'C#',           version: '.NET' },
   'go':         { language: 'Go',           version: 'latest' },
+  'rust':       { language: 'Rust',         version: 'latest' },
   'ruby':       { language: 'Ruby',         version: '3.x' },
-  'php':        { language: 'PHP',          version: '8.x' }
+  'php':        { language: 'PHP',          version: '8.x' },
+  'kotlin':     { language: 'Kotlin',       version: 'latest' },
+  'swift':      { language: 'Swift',        version: 'latest' }
 };
 
 /**

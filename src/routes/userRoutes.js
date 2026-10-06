@@ -7,7 +7,8 @@ const {
   changePassword,
   requestEmailChangeOTP,
   verifyEmailChangeOTP,
-  getSubmissionHeatmap
+  getSubmissionHeatmap,
+  uploadAvatar
 } = require('../controllers/userController');
 const { getActiveLiveSessions } = require('../controllers/liveSessionController');
 const { verifyToken } = require('../middleware/auth');
@@ -15,6 +16,7 @@ const { verifyToken } = require('../middleware/auth');
 router.get('/', verifyToken, getAllUsers);
 router.get('/me', verifyToken, getMe);
 router.put('/me', verifyToken, updateProfile);
+router.post('/me/avatar', verifyToken, uploadAvatar);
 router.put('/me/password', verifyToken, changePassword);
 router.post('/me/email/request-otp', verifyToken, requestEmailChangeOTP);
 router.post('/me/email/verify-otp', verifyToken, verifyEmailChangeOTP);

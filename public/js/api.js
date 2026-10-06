@@ -289,17 +289,22 @@ function renderRoleBadge(role) {
 }
 
 // Empty State Renderer Utility
-function renderEmptyState({ icon = 'folder-open', title = 'No Data Found', message = 'There are no items to display at this time.', actionText = null, actionFn = null }) {
+function renderEmptyState({ icon = 'folder-open', title = 'No Data Found', message = 'There are no items to display at this time.', actionText = null, actionFn = null, actionOnClick = null }) {
+  const btnId = `empty-state-btn-${Math.random().toString(36).substring(2, 9)}`;
+  const onclickStr = typeof actionOnClick === 'string' ? `onclick="${actionOnClick}"` : '';
+
   const actionButton = actionText ? `
-    <button class="btn btn-primary" style="margin-top: 1rem;" id="empty-state-action-btn">${actionText}</button>
+    <button class="btn btn-primary" style="margin-top: 1rem;" id="${btnId}" ${onclickStr}>${actionText}</button>
   ` : '';
 
-  setTimeout(() => {
-    const btn = document.getElementById('empty-state-action-btn');
-    if (btn && typeof actionFn === 'function') {
-      btn.onclick = actionFn;
-    }
-  }, 0);
+  if (actionText && typeof actionFn === 'function') {
+    setTimeout(() => {
+      const btn = document.getElementById(btnId);
+      if (btn) {
+        btn.onclick = actionFn;
+      }
+    }, 0);
+  }
 
   return `
     <div class="empty-state">

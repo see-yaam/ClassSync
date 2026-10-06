@@ -10,7 +10,8 @@ const {
   overrideAttendance,
   startLiveSession,
   endLiveSession,
-  getActiveLiveSessions
+  getActiveLiveSessions,
+  exportAttendanceCSV
 } = require('../controllers/liveSessionController');
 const { verifyToken } = require('../middleware/auth');
 const { requireClassroomRole } = require('../middleware/rbac');
@@ -25,6 +26,7 @@ router.put('/live-sessions/:id/start', verifyToken, requireClassroomRole(['instr
 router.put('/live-sessions/:id/end', verifyToken, requireClassroomRole(['instructor', 'TA'], 'live-session'), endLiveSession);
 router.post('/live-sessions/:id/attendance', verifyToken, requireClassroomRole(['instructor', 'TA', 'learner'], 'live-session'), recordAttendanceDuration);
 router.put('/attendance/:id/override', verifyToken, requireClassroomRole(['instructor', 'TA'], 'attendance'), overrideAttendance);
+router.get('/live-sessions/:id/attendance/export', verifyToken, requireClassroomRole(['instructor', 'TA'], 'live-session'), exportAttendanceCSV);
 
 module.exports = router;
 

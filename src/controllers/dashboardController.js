@@ -57,7 +57,7 @@ const getDashboardSummary = async (req, res) => {
              JOIN submissions s ON q.question_id = s.question_id
              WHERE q.homework_id = h.homework_id AND s.learner_id = ?
            )
-         ORDER BY h.deadline ASC NULLS LAST
+         ORDER BY (h.deadline IS NULL), h.deadline ASC
          LIMIT 6`,
         [userId, userId]
       );
@@ -206,15 +206,48 @@ const getDashboardSummary = async (req, res) => {
   }
 };
 
+// Helper to check and issue notifications for due personal tasks
+const checkTodoReminders = async (userId) => {
+  try {
+    const { createNotification } = require('../utils/notificationHelper');
+    const [dueTodos] = await db.query(
+      `SELECT todo_id, title, due_date, due_time
+       FROM user_todos
+       WHERE user_id = ? AND completed = false AND reminder_sent = false
+         AND due_date IS NOT NULL AND due_time IS NOT NULL
+         AND (due_date < CURDATE() OR (due_date = CURDATE() AND due_time <= CURTIME()))`,
+      [userId]
+    );
+
+    for (const t of dueTodos) {
+      const timeStr = t.due_time ? String(t.due_time).substring(0, 5) : '';
+      const dateStr = t.due_date ? String(t.due_date).split('T')[0] : '';
+      await createNotification(
+        userId,
+        'todo_reminder',
+        '⏰ Personal Task Reminder',
+        `Reminder: Task "${t.title}" is due now (${timeStr} on ${dateStr})!`,
+        '/dashboard.html'
+      );
+      await db.query(`UPDATE user_todos SET reminder_sent = true WHERE todo_id = ?`, [t.todo_id]);
+    }
+  } catch (err) {
+    console.warn('checkTodoReminders error:', err.message);
+  }
+};
+
 // GET /api/dashboard/todos
 const getTodos = async (req, res) => {
   try {
     const userId = req.user.user_id;
+
+    await checkTodoReminders(userId);
+
     const [rows] = await db.query(
-      `SELECT todo_id, title, priority, due_date, completed, created_at
+      `SELECT todo_id, title, priority, due_date, due_time, completed, reminder_sent, created_at
        FROM user_todos
        WHERE user_id = ?
-       ORDER BY completed ASC, due_date ASC, created_at DESC`,
+       ORDER BY completed ASC, due_date ASC, due_time ASC, created_at DESC`,
       [userId]
     );
     res.json({ success: true, todos: rows || [] });
@@ -228,15 +261,15 @@ const getTodos = async (req, res) => {
 const createTodo = async (req, res) => {
   try {
     const userId = req.user.user_id;
-    const { title, priority = 'medium', due_date = null } = req.body;
+    const { title, priority = 'medium', due_date = null, due_time = null } = req.body;
 
     if (!title || !title.trim()) {
       return res.status(400).json({ success: false, message: 'Task title is required.' });
     }
 
     const [result] = await db.query(
-      `INSERT INTO user_todos (user_id, title, priority, due_date) VALUES (?, ?, ?, ?)`,
-      [userId, title.trim(), priority, due_date || null]
+      `INSERT INTO user_todos (user_id, title, priority, due_date, due_time) VALUES (?, ?, ?, ?, ?)`,
+      [userId, title.trim(), priority, due_date || null, due_time || null]
     );
 
     res.status(201).json({
@@ -247,6 +280,7 @@ const createTodo = async (req, res) => {
         title: title.trim(),
         priority,
         due_date: due_date || null,
+        due_time: due_time || null,
         completed: false
       }
     });
@@ -331,10 +365,220 @@ const deleteTodo = async (req, res) => {
   }
 };
 
+// GET /api/dashboard/calendar-events?month=10&year=2026
+const getCalendarEvents = async (req, res) => {
+  try {
+    const userId = req.user.user_id;
+    const now = new Date();
+    const year = parseInt(req.query.year, 10) || now.getFullYear();
+    const month = parseInt(req.query.month, 10) || (now.getMonth() + 1);
+
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01 00:00:00`;
+    const endDate = `${year}-${String(month).padStart(2, '0')}-31 23:59:59`;
+
+    // 1. Homework Deadlines
+    const [homeworks] = await db.query(
+      `SELECT DISTINCT h.homework_id, h.title, h.deadline, h.total_points, c.classroom_name, c.classroom_id
+       FROM homework h
+       JOIN classrooms c ON h.classroom_id = c.classroom_id
+       JOIN classroom_members cm ON c.classroom_id = cm.classroom_id
+       WHERE cm.user_id = ? AND cm.is_active = true AND h.is_published = true AND h.is_active = true
+         AND h.deadline IS NOT NULL
+         AND h.deadline BETWEEN ? AND ?`,
+      [userId, startDate, endDate]
+    );
+
+    // 2. Scheduled Live Sessions
+    const [liveSessions] = await db.query(
+      `SELECT DISTINCT ls.session_id, ls.session_title, ls.scheduled_time, ls.jitsi_room_id, ls.is_active, c.classroom_name, c.classroom_id
+       FROM live_sessions ls
+       JOIN classrooms c ON ls.classroom_id = c.classroom_id
+       JOIN classroom_members cm ON c.classroom_id = cm.classroom_id
+       WHERE cm.user_id = ? AND cm.is_active = true AND ls.is_active = true
+         AND ls.scheduled_time IS NOT NULL
+         AND ls.scheduled_time BETWEEN ? AND ?`,
+      [userId, startDate, endDate]
+    );
+
+    // 3. Personal Tasks
+    const [todos] = await db.query(
+      `SELECT todo_id, title, priority, due_date, due_time, completed
+       FROM user_todos
+       WHERE user_id = ? AND due_date IS NOT NULL
+         AND due_date BETWEEN ? AND ?`,
+      [userId, startDate, endDate]
+    );
+
+    // 4. Quizzes / Exams
+    const [quizzes] = await db.query(
+      `SELECT DISTINCT q.quiz_id, q.title, q.quiz_type, q.duration_minutes, q.start_time, q.end_time, c.classroom_name, c.classroom_id
+       FROM quizzes q
+       JOIN classrooms c ON q.classroom_id = c.classroom_id
+       JOIN classroom_members cm ON c.classroom_id = cm.classroom_id
+       WHERE cm.user_id = ? AND cm.is_active = true AND q.is_published = true
+         AND (
+           (q.start_time IS NOT NULL AND q.start_time BETWEEN ? AND ?)
+           OR (q.end_time IS NOT NULL AND q.end_time BETWEEN ? AND ?)
+         )`,
+      [userId, startDate, endDate, startDate, endDate]
+    );
+
+    const events = [];
+
+    homeworks.forEach(hw => {
+      const dateStr = String(hw.deadline).split('T')[0].split(' ')[0];
+      events.push({
+        id: `hw-${hw.homework_id}`,
+        type: 'homework',
+        title: hw.title,
+        date: dateStr,
+        datetime: hw.deadline,
+        classroom: hw.classroom_name,
+        url: `/homework.html?id=${hw.homework_id}`,
+        points: hw.total_points
+      });
+    });
+
+    liveSessions.forEach(ls => {
+      const dateStr = String(ls.scheduled_time).split('T')[0].split(' ')[0];
+      events.push({
+        id: `live-${ls.session_id}`,
+        type: 'live_session',
+        title: ls.session_title,
+        date: dateStr,
+        datetime: ls.scheduled_time,
+        classroom: ls.classroom_name,
+        url: `/live.html?id=${ls.session_id}&room=${encodeURIComponent(ls.jitsi_room_id)}`,
+        is_active: ls.is_active
+      });
+    });
+
+    todos.forEach(t => {
+      const dateStr = String(t.due_date).split('T')[0].split(' ')[0];
+      events.push({
+        id: `todo-${t.todo_id}`,
+        type: 'todo',
+        title: t.title,
+        date: dateStr,
+        due_time: t.due_time ? String(t.due_time).substring(0, 5) : null,
+        priority: t.priority,
+        completed: Boolean(t.completed)
+      });
+    });
+
+    quizzes.forEach(q => {
+      const targetTime = q.start_time || q.end_time;
+      if (targetTime) {
+        const dateStr = String(targetTime).split('T')[0].split(' ')[0];
+        events.push({
+          id: `quiz-${q.quiz_id}`,
+          type: 'quiz',
+          title: q.title,
+          date: dateStr,
+          datetime: targetTime,
+          quiz_type: q.quiz_type,
+          duration_minutes: q.duration_minutes,
+          classroom: q.classroom_name,
+          url: `/dashboard.html?tab=quizzes&id=${q.quiz_id}`
+        });
+      }
+    });
+
+    res.json({ success: true, year, month, events });
+  } catch (error) {
+    console.error('getCalendarEvents error:', error);
+    res.status(500).json({ success: false, message: 'Failed to load calendar events.' });
+  }
+};
+
+// GET /api/dashboard/calendar/export
+const exportCalendarICal = async (req, res) => {
+  try {
+    const userId = req.user.user_id;
+
+    // Fetch homework deadlines
+    const [homeworks] = await db.query(
+      `SELECT h.homework_id, h.title, h.deadline, c.classroom_name
+       FROM homework h
+       JOIN classrooms c ON h.classroom_id = c.classroom_id
+       JOIN classroom_members cm ON c.classroom_id = cm.classroom_id
+       WHERE cm.user_id = ? AND cm.is_active = true AND h.is_published = true AND h.is_active = true
+         AND h.deadline IS NOT NULL`,
+      [userId]
+    );
+
+    // Fetch live sessions
+    const [liveSessions] = await db.query(
+      `SELECT DISTINCT ls.session_id, ls.session_title, ls.scheduled_time, c.classroom_name
+       FROM live_sessions ls
+       JOIN classrooms c ON ls.classroom_id = c.classroom_id
+       JOIN classroom_members cm ON c.classroom_id = cm.classroom_id
+       WHERE cm.user_id = ? AND cm.is_active = true AND ls.is_active = true
+         AND ls.scheduled_time IS NOT NULL`,
+      [userId]
+    );
+
+    const formatICalDate = (dt) => {
+      if (!dt) return '';
+      const d = new Date(dt);
+      return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+    };
+
+    let icsContent = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//ClassSync Academic Classroom Platform//EN',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'X-WR-CALNAME:ClassSync Schedule'
+    ];
+
+    homeworks.forEach(hw => {
+      const dtStr = formatICalDate(hw.deadline);
+      icsContent.push(
+        'BEGIN:VEVENT',
+        `UID:hw-${hw.homework_id}@classsync.app`,
+        `DTSTAMP:${formatICalDate(new Date())}`,
+        `DTSTART:${dtStr}`,
+        `SUMMARY:[Homework] ${hw.title} - ${hw.classroom_name}`,
+        `DESCRIPTION:Homework Deadline for ${hw.classroom_name}`,
+        'STATUS:CONFIRMED',
+        'END:VEVENT'
+      );
+    });
+
+    liveSessions.forEach(ls => {
+      const dtStr = formatICalDate(ls.scheduled_time);
+      icsContent.push(
+        'BEGIN:VEVENT',
+        `UID:live-${ls.session_id}@classsync.app`,
+        `DTSTAMP:${formatICalDate(new Date())}`,
+        `DTSTART:${dtStr}`,
+        `SUMMARY:[Live Class] ${ls.session_title} - ${ls.classroom_name}`,
+        `DESCRIPTION:Scheduled Live Video Session for ${ls.classroom_name}`,
+        'STATUS:CONFIRMED',
+        'END:VEVENT'
+      );
+    });
+
+    icsContent.push('END:VCALENDAR');
+
+    const fileBuffer = Buffer.from(icsContent.join('\r\n'), 'utf-8');
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="ClassSync_Schedule.ics"');
+    res.send(fileBuffer);
+  } catch (error) {
+    console.error('exportCalendarICal error:', error);
+    res.status(500).json({ success: false, message: 'Failed to export calendar schedule.' });
+  }
+};
+
 module.exports = {
   getDashboardSummary,
   getTodos,
   createTodo,
   updateTodo,
-  deleteTodo
+  deleteTodo,
+  getCalendarEvents,
+  exportCalendarICal
 };

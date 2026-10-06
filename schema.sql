@@ -375,10 +375,86 @@ CREATE TABLE `user_todos` (
   `title` varchar(255) NOT NULL,
   `priority` enum('low','medium','high') NOT NULL DEFAULT 'medium',
   `due_date` date NULL,
+  `due_time` time NULL,
   `completed` boolean DEFAULT false,
+  `reminder_sent` boolean DEFAULT false,
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
+);
+
+CREATE TABLE `quizzes` (
+  `quiz_id` int PRIMARY KEY AUTO_INCREMENT,
+  `classroom_id` int NOT NULL,
+  `created_by` int NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `description` text NULL,
+  `quiz_type` enum('live','flexible') NOT NULL DEFAULT 'flexible',
+  `duration_minutes` int NOT NULL DEFAULT 15,
+  `start_time` datetime NULL,
+  `end_time` datetime NULL,
+  `total_marks` int DEFAULT 0,
+  `is_published` boolean DEFAULT true,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`classroom_id`) REFERENCES `classrooms` (`classroom_id`) ON DELETE CASCADE,
+  FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
+);
+
+CREATE TABLE `quiz_questions` (
+  `question_id` int PRIMARY KEY AUTO_INCREMENT,
+  `quiz_id` int NOT NULL,
+  `question_text` text NOT NULL,
+  `question_type` enum('mcq','true_false','short_answer','coding') NOT NULL DEFAULT 'mcq',
+  `coding_language` varchar(50) DEFAULT 'python',
+  `starter_code` text NULL,
+  `points` int DEFAULT 5,
+  `order_number` int DEFAULT 0,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`quiz_id`) REFERENCES `quizzes` (`quiz_id`) ON DELETE CASCADE
+);
+
+CREATE TABLE `quiz_options` (
+  `option_id` int PRIMARY KEY AUTO_INCREMENT,
+  `question_id` int NOT NULL,
+  `option_text` varchar(500) NOT NULL,
+  `is_correct` boolean DEFAULT false,
+  FOREIGN KEY (`question_id`) REFERENCES `quiz_questions` (`question_id`) ON DELETE CASCADE
+);
+
+CREATE TABLE `quiz_test_cases` (
+  `test_case_id` int PRIMARY KEY AUTO_INCREMENT,
+  `question_id` int NOT NULL,
+  `input_data` text NULL,
+  `expected_output` text NOT NULL,
+  `points` int DEFAULT 1,
+  FOREIGN KEY (`question_id`) REFERENCES `quiz_questions` (`question_id`) ON DELETE CASCADE
+);
+
+CREATE TABLE `quiz_attempts` (
+  `attempt_id` int PRIMARY KEY AUTO_INCREMENT,
+  `quiz_id` int NOT NULL,
+  `learner_id` int NOT NULL,
+  `started_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `submitted_at` timestamp NULL,
+  `status` enum('in_progress','submitted','time_expired') DEFAULT 'in_progress',
+  `approval_status` enum('approved','pending') DEFAULT 'approved',
+  `total_score` decimal(5,2) DEFAULT 0.00,
+  FOREIGN KEY (`quiz_id`) REFERENCES `quizzes` (`quiz_id`) ON DELETE CASCADE,
+  FOREIGN KEY (`learner_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
+);
+
+CREATE TABLE `quiz_answers` (
+  `answer_id` int PRIMARY KEY AUTO_INCREMENT,
+  `attempt_id` int NOT NULL,
+  `question_id` int NOT NULL,
+  `selected_option_id` int NULL,
+  `answer_text` text NULL,
+  `is_correct` boolean NULL,
+  `marks_awarded` decimal(5,2) DEFAULT 0.00,
+  FOREIGN KEY (`attempt_id`) REFERENCES `quiz_attempts` (`attempt_id`) ON DELETE CASCADE,
+  FOREIGN KEY (`question_id`) REFERENCES `quiz_questions` (`question_id`) ON DELETE CASCADE,
+  FOREIGN KEY (`selected_option_id`) REFERENCES `quiz_options` (`option_id`) ON DELETE SET NULL
 );
 
 -- Constraints & Unique Indexes
@@ -386,3 +462,4 @@ CREATE UNIQUE INDEX `classroom_members_index_0` ON `classroom_members` (`user_id
 CREATE UNIQUE INDEX `submissions_index_1` ON `submissions` (`question_id`, `learner_id`);
 CREATE UNIQUE INDEX `attendance_index_2` ON `attendance` (`session_id`, `learner_id`);
 CREATE UNIQUE INDEX `plagiarism_flags_index_3` ON `plagiarism_flags` (`submission_id_1`, `submission_id_2`);
+CREATE UNIQUE INDEX `quiz_attempts_index_4` ON `quiz_attempts` (`quiz_id`, `learner_id`);

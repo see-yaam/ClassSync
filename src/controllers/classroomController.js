@@ -805,6 +805,73 @@ const deleteClassroom = async (req, res) => {
   }
 };
 
+// GET /api/classrooms/:id/gradebook/export - Export Gradebook as CSV (Instructor/TA only)
+const exportGradebookCSV = async (req, res) => {
+  try {
+    const classroomId = req.params.id;
+
+    // Get classroom name
+    const [rooms] = await db.query(
+      `SELECT classroom_name FROM classrooms WHERE classroom_id = ? AND is_active = true`,
+      [classroomId]
+    );
+
+    if (rooms.length === 0) {
+      return res.status(404).json({ success: false, message: 'Classroom not found' });
+    }
+
+    const classroomName = rooms[0].classroom_name.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    // Fetch all learners in this classroom
+    const [learners] = await db.query(
+      `SELECT cm.user_id, u.full_name, u.email, cm.joined_at
+       FROM classroom_members cm
+       JOIN users u ON cm.user_id = u.user_id
+       WHERE cm.classroom_id = ? AND cm.role = 'learner' AND cm.is_active = true
+       ORDER BY u.full_name ASC`,
+      [classroomId]
+    );
+
+    let csvLines = [
+      'Student Name,Email,Joined Date,Total Submissions,Average Grade (%),Status'
+    ];
+
+    for (const l of learners) {
+      const [subStats] = await db.query(
+        `SELECT COUNT(DISTINCT s.submission_id) AS total_submissions,
+                AVG(CASE WHEN g.score IS NOT NULL AND q.points > 0 THEN (g.score / q.points) * 100 ELSE NULL END) AS avg_score_pct
+         FROM submissions s
+         JOIN questions q ON s.question_id = q.question_id
+         JOIN homework h ON q.homework_id = h.homework_id
+         LEFT JOIN grades g ON s.submission_id = g.submission_id
+         WHERE h.classroom_id = ? AND s.learner_id = ?`,
+        [classroomId, l.user_id]
+      );
+
+      const totSub = subStats[0]?.total_submissions || 0;
+      const avgScore = subStats[0]?.avg_score_pct !== null && subStats[0]?.avg_score_pct !== undefined
+        ? `${Math.round(subStats[0].avg_score_pct * 10) / 10}%`
+        : 'N/A';
+
+      const status = subStats[0]?.avg_score_pct >= 70 ? 'Good Standing' : (subStats[0]?.avg_score_pct < 50 ? 'Needs Attention' : 'Satisfactory');
+
+      const dateStr = l.joined_at ? new Date(l.joined_at).toISOString().split('T')[0] : 'N/A';
+      const safeName = `"${(l.full_name || '').replace(/"/g, '""')}"`;
+      const safeEmail = `"${(l.email || '').replace(/"/g, '""')}"`;
+
+      csvLines.push(`${safeName},${safeEmail},${dateStr},${totSub},${avgScore},${status}`);
+    }
+
+    const csvContent = csvLines.join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${classroomName}_Gradebook.csv"`);
+    res.send(Buffer.from(csvContent, 'utf-8'));
+  } catch (error) {
+    console.error('Error exporting gradebook CSV:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   createClassroom,
   updateClassroomSettings,
@@ -820,6 +887,7 @@ module.exports = {
   updateMemberRole,
   getStudentInfo,
   leaveClassroom,
-  deleteClassroom
+  deleteClassroom,
+  exportGradebookCSV
 };
 

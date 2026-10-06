@@ -431,6 +431,60 @@ const getActiveLiveSessions = async (req, res) => {
   }
 };
 
+// GET /api/live-sessions/:id/attendance/export - Download session attendance CSV
+const exportAttendanceCSV = async (req, res) => {
+  try {
+    const sessionId = req.params.id;
+    const userId = req.user.user_id;
+
+    const [sessions] = await db.query(
+      `SELECT ls.session_title, ls.classroom_id, c.classroom_name
+       FROM live_sessions ls
+       JOIN classrooms c ON ls.classroom_id = c.classroom_id
+       WHERE ls.session_id = ?`,
+      [sessionId]
+    );
+
+    if (sessions.length === 0) return res.status(404).json({ success: false, message: 'Live session not found' });
+    const session = sessions[0];
+
+    if (!(await isInstructorOrTA(userId, session.classroom_id))) {
+      return res.status(403).json({ success: false, message: 'Only instructors or TAs can export attendance' });
+    }
+
+    const [attendance] = await db.query(
+      `SELECT a.*, u.full_name AS learner_name, u.email AS learner_email
+       FROM attendance a
+       JOIN users u ON a.learner_id = u.user_id
+       WHERE a.session_id = ?
+       ORDER BY u.full_name ASC`,
+      [sessionId]
+    );
+
+    let csvLines = [
+      'Student Name,Email,Duration (Minutes),Present Status,Instructor Override,Override Reason'
+    ];
+
+    attendance.forEach(a => {
+      const isPresent = (a.is_present || (a.instructor_override && a.override_present)) ? 'Present' : 'Absent';
+      const override = a.instructor_override ? 'Yes' : 'No';
+      const reason = `"${(a.override_reason || '').replace(/"/g, '""')}"`;
+      const name = `"${(a.learner_name || '').replace(/"/g, '""')}"`;
+      const email = `"${(a.learner_email || '').replace(/"/g, '""')}"`;
+
+      csvLines.push(`${name},${email},${a.duration_minutes || 0},${isPresent},${override},${reason}`);
+    });
+
+    const filename = `${session.session_title.replace(/[^a-zA-Z0-9_-]/g, '_')}_Attendance.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(Buffer.from(csvLines.join('\n'), 'utf-8'));
+  } catch (error) {
+    console.error('Error exporting attendance CSV:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   createLiveSession,
   updateLiveSession,
@@ -441,6 +495,7 @@ module.exports = {
   overrideAttendance,
   startLiveSession,
   endLiveSession,
-  getActiveLiveSessions
+  getActiveLiveSessions,
+  exportAttendanceCSV
 };
 

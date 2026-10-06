@@ -15,7 +15,8 @@ const {
   updateMemberRole,
   getStudentInfo,
   leaveClassroom,
-  deleteClassroom
+  deleteClassroom,
+  exportGradebookCSV
 } = require('../controllers/classroomController');
 const { verifyToken, optionalToken } = require('../middleware/auth');
 const { requireClassroomRole } = require('../middleware/rbac');
@@ -36,6 +37,7 @@ router.delete('/classrooms/:id', verifyToken, requireClassroomRole(['instructor'
 // Student Info & Attendance Roster & Submissions
 router.get('/classrooms/:id/student-info', verifyToken, requireClassroomRole(['instructor', 'TA'], 'classroom'), getStudentInfo);
 router.get('/classrooms/:id/matrix', verifyToken, requireClassroomRole(['instructor', 'TA'], 'classroom'), getClassroomSubmissionMatrix);
+router.get('/classrooms/:id/gradebook/export', verifyToken, requireClassroomRole(['instructor', 'TA'], 'classroom'), exportGradebookCSV);
 
 
 // Settings update (Instructor Only)
