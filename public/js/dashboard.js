@@ -23,11 +23,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   switchDashboardView(currentView);
 
   // Initial Data Loading
-  await Promise.all([
-    loadLearnerDashboard(),
-    loadInstructorDashboard(),
-    loadCalendarAndTodos()
-  ]);
+  try {
+    await Promise.allSettled([
+      loadLearnerDashboard(),
+      loadInstructorDashboard(),
+      loadCalendarAndTodos()
+    ]);
+  } catch (err) {
+    console.error('Initial dashboard load error:', err);
+  }
 });
 
 // Switch view tabs
@@ -64,10 +68,12 @@ async function loadLearnerDashboard() {
     }
 
     // Update Stats
-    document.getElementById('learner-stat-enrolled').textContent = data.stats.enrolledCount || 0;
-    document.getElementById('learner-stat-submissions').textContent = data.stats.totalSubmissions || 0;
-    document.getElementById('learner-stat-avg').textContent = `${data.stats.avgScorePercent || 0}%`;
-    document.getElementById('learner-stat-warnings').textContent = data.stats.activeWarningsCount || 0;
+    if (data.stats) {
+      document.getElementById('learner-stat-enrolled').textContent = data.stats.enrolledCount ?? 0;
+      document.getElementById('learner-stat-submissions').textContent = data.stats.totalSubmissions ?? 0;
+      document.getElementById('learner-stat-avg').textContent = `${data.stats.avgScorePercent ?? 0}%`;
+      document.getElementById('learner-stat-warnings').textContent = data.stats.activeWarningsCount ?? 0;
+    }
 
     // Cache user classrooms for To-Do modal select
     (data.enrolledClassrooms || []).forEach(c => {
@@ -184,10 +190,12 @@ async function loadInstructorDashboard() {
     }
 
     // Update Stats
-    document.getElementById('instructor-stat-classrooms').textContent = data.stats.classroomCount || 0;
-    document.getElementById('instructor-stat-students').textContent = data.stats.totalStudents || 0;
-    document.getElementById('instructor-stat-pending').textContent = data.stats.pendingGradingCount || 0;
-    document.getElementById('instructor-stat-plagiarism').textContent = data.stats.unreviewedPlagiarismCount || 0;
+    if (data.stats) {
+      document.getElementById('instructor-stat-classrooms').textContent = data.stats.classroomCount ?? 0;
+      document.getElementById('instructor-stat-students').textContent = data.stats.totalStudents ?? 0;
+      document.getElementById('instructor-stat-pending').textContent = data.stats.pendingGradingCount ?? 0;
+      document.getElementById('instructor-stat-plagiarism').textContent = data.stats.unreviewedPlagiarismCount ?? 0;
+    }
 
     // Cache instructor classrooms for To-Do modal select
     (data.createdClassrooms || []).forEach(c => {
