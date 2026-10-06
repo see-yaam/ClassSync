@@ -2087,4 +2087,12 @@ th {
 
 .dropdown-item.danger:hover i {
   color: #ef4444;
+}
+
+/* Default hidden state for role-restricted elements to eliminate UI flash on page refresh */
+.staff-tab,
+.staff-only,
+.instructor-only,
+.learner-only {
+  display: none;
 }

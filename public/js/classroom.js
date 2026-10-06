@@ -77,6 +77,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.querySelectorAll('.instructor-only').forEach(el => el.style.display = isInstructor ? 'flex' : 'none');
       document.querySelectorAll('.staff-only').forEach(el => el.style.display = isStaff ? 'inline-flex' : 'none');
       document.querySelectorAll('.staff-tab').forEach(el => el.style.display = isStaff ? 'flex' : 'none');
+      document.querySelectorAll('.learner-only').forEach(el => el.style.display = !isStaff ? 'block' : 'none');
 
       // Auto-select tab if specified in URL Hash, query parameter, or localStorage
       const hashTab = window.location.hash ? window.location.hash.replace('#', '').replace('tab-', '') : null;
