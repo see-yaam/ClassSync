@@ -49,8 +49,7 @@ let currentModalSessionId = null;
   }
 })();
 
-// Render shared Navbar across all pages
-document.addEventListener('DOMContentLoaded', async () => {
+async function renderNavbar() {
   const navbarContainer = document.getElementById('navbar-container');
   if (!navbarContainer) return;
 
@@ -295,9 +294,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       setInterval(() => {
         if (getAuthToken()) pollClassroomAlertBanner();
       }, 30000);
-    }
   }
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', renderNavbar);
+} else {
+  renderNavbar();
+}
 
 // ===== Classroom Active Alert Banner =====
 // In-memory dismiss flag — resets every time the page loads (intended behaviour)

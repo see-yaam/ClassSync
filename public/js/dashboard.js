@@ -7,7 +7,7 @@ let userClassroomsList = [];
 let currentDate = new Date();
 let selectedDateStr = null; // YYYY-MM-DD
 
-document.addEventListener('DOMContentLoaded', async () => {
+async function initDashboard() {
   const token = getAuthToken();
   if (!token) {
     window.location.href = '/login.html';
@@ -32,7 +32,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch (err) {
     console.error('Initial dashboard load error:', err);
   }
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initDashboard);
+} else {
+  initDashboard();
+}
 
 // Switch view tabs
 function switchDashboardView(viewName) {
