@@ -78,6 +78,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         </button>
 
         ${token ? `
+          <a href="/dashboard.html" class="btn btn-outline btn-sm me-2" style="display:inline-flex; align-items:center; gap:0.4rem; font-weight:600;">
+            <i class="fa-solid fa-gauge-high"></i> Dashboard
+          </a>
+
           <div id="navbar-live-btn-container" style="display: none; align-items: center;">
             <a id="navbar-live-btn" href="#" class="btn btn-warning btn-sm pulsing-btn">
               <i class="fa-solid fa-video fa-beat-fade"></i> Join Live Class
@@ -116,6 +120,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
               </div>
               <div class="dropdown-divider"></div>
+              <a href="/dashboard.html" class="dropdown-item">
+                <i class="fa-solid fa-gauge-high"></i> Dashboard
+              </a>
               <a href="/profile.html" class="dropdown-item">
                 <i class="fa-solid fa-user"></i> My Profile
               </a>

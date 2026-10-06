@@ -32,6 +32,7 @@ app.use('/api', require('./routes/uploadRoutes'));
 app.use('/api', require('./routes/messageRoutes'));
 app.use('/api', require('./routes/autoEvalRoutes'));
 app.use('/api', require('./routes/cronRoutes'));
+app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 
 // Fallback to login.html if not authenticated, or index.html for static routes
 app.get('*', (req, res, next) => {
@@ -95,6 +96,27 @@ const autoInitSchema = async () => {
         await db.query(`ALTER TABLE users MODIFY COLUMN profile_picture_url MEDIUMTEXT`);
       } catch (mErr) {
         // Ignore if already modified
+      }
+
+      // Ensure user_todos table exists
+      try {
+        await db.query(`
+          CREATE TABLE IF NOT EXISTS user_todos (
+            todo_id INT PRIMARY KEY AUTO_INCREMENT,
+            user_id INT NOT NULL,
+            classroom_id INT NULL,
+            title VARCHAR(255) NOT NULL,
+            due_date DATETIME NULL,
+            priority ENUM('low', 'medium', 'high') DEFAULT 'medium',
+            completed BOOLEAN DEFAULT false,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE,
+            FOREIGN KEY (classroom_id) REFERENCES classrooms (classroom_id) ON DELETE CASCADE
+          )
+        `);
+      } catch (todoErr) {
+        console.warn('Could not auto-init user_todos table:', todoErr.message);
       }
     }
   } catch (err) {

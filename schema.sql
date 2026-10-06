@@ -373,3 +373,19 @@ CREATE UNIQUE INDEX `classroom_members_index_0` ON `classroom_members` (`user_id
 CREATE UNIQUE INDEX `submissions_index_1` ON `submissions` (`question_id`, `learner_id`);
 CREATE UNIQUE INDEX `attendance_index_2` ON `attendance` (`session_id`, `learner_id`);
 CREATE UNIQUE INDEX `plagiarism_flags_index_3` ON `plagiarism_flags` (`submission_id_1`, `submission_id_2`);
+
+-- Personal User To-Do Tasks Table
+CREATE TABLE IF NOT EXISTS `user_todos` (
+  `todo_id` int PRIMARY KEY AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `classroom_id` int NULL,
+  `title` varchar(255) NOT NULL,
+  `due_date` datetime NULL,
+  `priority` enum('low', 'medium', 'high') DEFAULT 'medium',
+  `completed` boolean DEFAULT false,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
+  FOREIGN KEY (`classroom_id`) REFERENCES `classrooms` (`classroom_id`) ON DELETE CASCADE
+);
+
