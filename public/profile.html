@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Profile - ClassSync</title>
+  <meta name="description" content="View and edit your ClassSync profile information, custom bio, avatar picture, and social links.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .profile-hero {
+      background: linear-gradient(135deg, var(--primary-color) 0%, #1e1b4b 100%);
+      color: #ffffff;
+      border-radius: 20px;
+      padding: 2.5rem 2rem;
+      margin-bottom: 2rem;
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      box-shadow: 0 10px 30px -5px rgba(37, 99, 235, 0.3);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .profile-hero::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -10%;
+      width: 300px;
+      height: 300px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .hero-avatar-wrapper {
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .hero-avatar-img {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 4px solid rgba(255, 255, 255, 0.9);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .hero-user-details {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .hero-user-name {
+      font-size: 1.8rem;
+      font-weight: 800;
+      line-height: 1.2;
+      margin: 0;
+    }
+
+    .hero-user-email {
+      font-size: 0.95rem;
+      opacity: 0.9;
+    }
+
+    .hero-user-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.3rem 0.8rem;
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(4px);
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      width: fit-content;
+      margin-top: 0.25rem;
+    }
+
+    .profile-grid {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 2rem;
+    }
+
+    @media (max-width: 992px) {
+      .profile-grid {
+        grid-template-columns: 1fr;
+      }
+      .profile-hero {
+        flex-direction: column;
+        text-align: center;
+        padding: 2rem 1.5rem;
+      }
+      .hero-user-badge {
+        margin: 0.25rem auto 0 auto;
+      }
+    }
+
+    .avatar-edit-card {
+      text-align: center;
+    }
+
+    .avatar-preview-lg {
+      width: 130px;
+      height: 130px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid var(--primary-color);
+      margin: 0 auto 1rem auto;
+      display: block;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    }
+
+    .social-input-group {
+      position: relative;
+    }
+
+    .social-input-group i {
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 1.1rem;
+    }
+
+    .social-input-group input {
+      padding-left: 2.75rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="navbar-container"></div>
+
+  <main class="container" style="max-width: 1100px; padding-top: 2rem; padding-bottom: 3rem;">
+    <!-- Profile Hero Header Banner -->
+    <div class="profile-hero">
+      <div class="hero-avatar-wrapper">
+        <img id="hero-avatar" src="https://ui-avatars.com/api/?name=User&background=2563eb&color=fff" alt="User Avatar" class="hero-avatar-img">
+      </div>
+      <div class="hero-user-details">
+        <h1 id="hero-name" class="hero-user-name">Loading...</h1>
+        <div id="hero-email" class="hero-user-email"><i class="fa-solid fa-envelope"></i> user@example.com</div>
+        <div class="hero-user-badge">
+          <i class="fa-solid fa-calendar-alt"></i> Joined ClassSync: <span id="hero-joined">...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Profile Configuration Grid -->
+    <div class="profile-grid">
+      <!-- Left Column: Personal Information & Social Links -->
+      <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        <!-- Personal Info Card -->
+        <div class="card">
+          <div class="card-header" style="margin-bottom: 1.25rem;">
+            <h2 class="card-title" style="font-size: 1.2rem; display: flex; align-items: center; gap: 0.5rem;">
+              <i class="fa-solid fa-user-edit" style="color: var(--primary-color);"></i> Personal Information
+            </h2>
+          </div>
+
+          <form id="profile-info-form">
+            <div class="form-group">
+              <label for="prof-fullname">Full Name *</label>
+              <input type="text" id="prof-fullname" class="form-control" placeholder="Your full name" required>
+            </div>
+
+            <div class="form-group">
+              <label for="prof-email">Email Address <span style="font-weight: normal; color: var(--text-muted); font-size: 0.85rem;">(To change your email, visit <a href="/settings.html" style="font-weight:600;">Settings</a>)</span></label>
+              <div style="position: relative;">
+                <input type="email" id="prof-email" class="form-control" style="padding-right: 2.5rem; background-color: var(--table-head-bg);" readonly>
+                <i class="fa-solid fa-lock" style="position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="prof-bio">Bio & About Me</label>
+              <textarea id="prof-bio" class="form-control" rows="4" placeholder="Tell your instructors and classmates a bit about yourself, your academic background, or programming interests..."></textarea>
+            </div>
+          </form>
+        </div>
+
+        <!-- Social & Portfolio Links Card -->
+        <div class="card">
+          <div class="card-header" style="margin-bottom: 1.25rem;">
+            <h2 class="card-title" style="font-size: 1.2rem; display: flex; align-items: center; gap: 0.5rem;">
+              <i class="fa-solid fa-link" style="color: var(--primary-color);"></i> Social & Portfolio Links
+            </h2>
+          </div>
+
+          <form id="profile-social-form">
+            <div class="form-group">
+              <label for="prof-github">GitHub Profile URL</label>
+              <div class="social-input-group">
+                <i class="fa-brands fa-github"></i>
+                <input type="url" id="prof-github" class="form-control" placeholder="https://github.com/username">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="prof-linkedin">LinkedIn Profile URL</label>
+              <div class="social-input-group">
+                <i class="fa-brands fa-linkedin"></i>
+                <input type="url" id="prof-linkedin" class="form-control" placeholder="https://linkedin.com/in/username">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="prof-website">Personal Website / Portfolio</label>
+              <div class="social-input-group">
+                <i class="fa-solid fa-globe"></i>
+                <input type="url" id="prof-website" class="form-control" placeholder="https://yourwebsite.com">
+              </div>
+            </div>
+
+            <button type="button" id="save-profile-btn" class="btn btn-primary btn-block" style="margin-top: 1rem;">
+              <i class="fa-solid fa-floppy-disk"></i> Save Profile Details
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Right Column: Avatar Upload -->
+      <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        <!-- Profile Picture Card -->
+        <div class="card avatar-edit-card">
+          <div class="card-header" style="margin-bottom: 1rem;">
+            <h2 class="card-title" style="font-size: 1.1rem; justify-content: center; display: flex; align-items: center; gap: 0.5rem;">
+              <i class="fa-solid fa-camera" style="color: var(--primary-color);"></i> Profile Picture
+            </h2>
+          </div>
+
+          <img id="prof-avatar-preview" src="https://ui-avatars.com/api/?name=User&background=2563eb&color=fff" alt="Avatar Preview" class="avatar-preview-lg">
+
+          <div class="file-dropzone" id="avatar-dropzone" style="margin-bottom: 1rem;">
+            <i class="fa-solid fa-cloud-arrow-up file-dropzone-icon"></i>
+            <div class="file-dropzone-text">Click or drag image to upload</div>
+            <div class="file-dropzone-hint">Supports JPG, PNG, GIF (Max 5MB)</div>
+            <input type="file" id="prof-avatar-file" accept="image/*" style="display: none;">
+          </div>
+
+          <button type="button" id="reset-avatar-btn" class="btn btn-outline btn-sm" style="width: 100%;">
+            <i class="fa-solid fa-rotate-left"></i> Reset to Default Initial Avatar
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/navbar.js"></script>
+  <script src="/js/profile.js"></script>
+</body>
+</html>

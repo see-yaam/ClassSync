@@ -39,6 +39,16 @@
           <label for="reg-password">Password *</label>
           <input type="password" id="reg-password" class="form-control" placeholder="Minimum 6 characters" required>
         </div>
+
+        <div class="form-group">
+          <label for="reg-avatar">Profile Picture <span style="font-weight: normal; color: var(--text-muted); font-size: 0.85rem;">(Optional)</span></label>
+          <div style="display: flex; align-items: center; gap: 1rem; margin-top: 0.25rem;">
+            <div id="avatar-preview-container" style="width: 50px; height: 50px; border-radius: 50%; overflow: hidden; background: var(--border-color); display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 2px solid var(--primary-color);">
+              <i class="fa-solid fa-user" style="font-size: 1.5rem; color: var(--text-muted);"></i>
+            </div>
+            <input type="file" id="reg-avatar" class="form-control" accept="image/*">
+          </div>
+        </div>
         
         <button type="submit" class="btn btn-primary btn-block" id="reg-btn">
           <i class="fa-solid fa-paper-plane"></i> Send Verification OTP

@@ -99,11 +99,35 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
           </div>
 
-          <div class="user-switcher">
-            <span><i class="fa-solid fa-user-circle"></i> <strong>${loggedInUser ? loggedInUser.full_name.replace(/\s*\((Instructor|TA|Learner|Student|Teacher)\)\s*/gi, '').trim() : 'User'}</strong></span>
+          <div class="nav-profile-container">
+            <button class="nav-avatar-btn" id="nav-avatar-btn" title="User Profile & Options">
+              <img src="${loggedInUser?.profile_picture_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(loggedInUser?.full_name || 'User')}&background=2563eb&color=fff`}" 
+                   alt="Profile" class="nav-avatar-img" 
+                   onerror="this.src='https://ui-avatars.com/api/?name=User&background=2563eb&color=fff'">
+              <span class="nav-user-name">${loggedInUser ? loggedInUser.full_name.split(' ')[0] : 'Account'}</span>
+              <i class="fa-solid fa-chevron-down nav-avatar-arrow"></i>
+            </button>
+            <div class="profile-dropdown" id="profile-dropdown">
+              <div class="profile-dropdown-header">
+                <img src="${loggedInUser?.profile_picture_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(loggedInUser?.full_name || 'User')}&background=2563eb&color=fff`}" alt="Avatar" class="dropdown-avatar-img" onerror="this.src='https://ui-avatars.com/api/?name=User&background=2563eb&color=fff'">
+                <div class="dropdown-user-info">
+                  <strong class="dropdown-user-name">${loggedInUser ? loggedInUser.full_name : 'User'}</strong>
+                  <span class="dropdown-user-email">${loggedInUser ? loggedInUser.email : ''}</span>
+                </div>
+              </div>
+              <div class="dropdown-divider"></div>
+              <a href="/profile.html" class="dropdown-item">
+                <i class="fa-solid fa-user"></i> My Profile
+              </a>
+              <a href="/settings.html" class="dropdown-item">
+                <i class="fa-solid fa-gear"></i> Settings
+              </a>
+              <div class="dropdown-divider"></div>
+              <button class="dropdown-item danger" onclick="logout()">
+                <i class="fa-solid fa-right-from-bracket"></i> Log Out
+              </button>
+            </div>
           </div>
-
-          <button class="btn btn-outline btn-sm" onclick="logout()"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
         ` : `
           <a href="/login.html" class="btn btn-outline btn-sm">Login</a>
           <a href="/register.html" class="btn btn-primary btn-sm">Register</a>
@@ -112,8 +136,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     </nav>
   `;
 
-  // Theme Toggle Event Handler
-  document.getElementById('theme-toggle-btn').addEventListener('click', () => {
+  // Function to toggle dark mode
+  const toggleTheme = () => {
     const activeTheme = document.documentElement.getAttribute('data-theme') || 'light';
     const newTheme = activeTheme === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', newTheme);
@@ -123,8 +147,39 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.documentElement.classList.remove('dark');
     }
     localStorage.setItem('classsync_theme', newTheme);
-    document.getElementById('theme-toggle-btn').innerHTML = newTheme === 'dark' ? '<i class="fa-solid fa-sun"></i> Light Mode' : '<i class="fa-solid fa-moon"></i> Dark Mode';
-  });
+    const themeBtn = document.getElementById('theme-toggle-btn');
+    const dropdownThemeBtn = document.getElementById('dropdown-theme-toggle');
+    const labelHtml = newTheme === 'dark' ? '<i class="fa-solid fa-sun"></i> Light Mode' : '<i class="fa-solid fa-moon"></i> Dark Mode';
+    if (themeBtn) themeBtn.innerHTML = labelHtml;
+    if (dropdownThemeBtn) dropdownThemeBtn.innerHTML = labelHtml;
+  };
+
+  // Theme Toggle Event Handlers
+  const themeBtn = document.getElementById('theme-toggle-btn');
+  if (themeBtn) themeBtn.addEventListener('click', toggleTheme);
+
+  const dropdownThemeBtn = document.getElementById('dropdown-theme-toggle');
+  if (dropdownThemeBtn) dropdownThemeBtn.addEventListener('click', toggleTheme);
+
+  // Profile Dropdown Toggle Listener
+  const navAvatarBtn = document.getElementById('nav-avatar-btn');
+  const profileDropdown = document.getElementById('profile-dropdown');
+  if (navAvatarBtn && profileDropdown) {
+    navAvatarBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const notiDropdown = document.getElementById('notifications-dropdown');
+      if (notiDropdown) notiDropdown.classList.remove('active');
+      profileDropdown.classList.toggle('active');
+    });
+
+    document.addEventListener('click', () => {
+      profileDropdown.classList.remove('active');
+    });
+
+    profileDropdown.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+  }
 
   if (token) {
 

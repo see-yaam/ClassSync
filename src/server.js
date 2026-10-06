@@ -115,6 +115,30 @@ if (!isVercel) {
         console.log('✅ DATABASE TABLES AUTOMATICALLY CREATED & INITIALIZED!');
       } else {
         console.log('✔ Database tables verified.');
+        // Ensure user profile extension columns exist
+        const columnsToAdd = [
+          { name: 'bio', type: 'TEXT NULL' },
+          { name: 'github_link', type: 'VARCHAR(255) NULL' },
+          { name: 'linkedin_link', type: 'VARCHAR(255) NULL' },
+          { name: 'website_link', type: 'VARCHAR(255) NULL' }
+        ];
+        const [existingCols] = await db.query(`SHOW COLUMNS FROM users`);
+        const colNames = existingCols.map(c => c.Field);
+        for (const col of columnsToAdd) {
+          if (!colNames.includes(col.name)) {
+            try {
+              await db.query(`ALTER TABLE users ADD COLUMN ${col.name} ${col.type}`);
+              console.log(`✅ Added missing column "${col.name}" to users table.`);
+            } catch (colErr) {
+              console.warn(`Could not add column ${col.name}:`, colErr.message);
+            }
+          }
+        }
+        try {
+          await db.query(`ALTER TABLE password_reset_otp MODIFY COLUMN otp_purpose VARCHAR(50) NOT NULL DEFAULT 'password_reset'`);
+        } catch (mErr) {
+          // Ignore if already modified
+        }
       }
     } catch (err) {
       console.warn('Auto schema init check:', err.message);

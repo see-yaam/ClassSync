@@ -23,9 +23,19 @@ const getTransporter = () => {
  * @param {string} purpose - 'registration' or 'password_reset'
  */
 async function sendOTPEmail(toEmail, otpCode, purpose = 'registration') {
-  const isReg = purpose === 'registration';
-  const subject = isReg ? 'ClassSync — Verify Your Account OTP' : 'ClassSync — Password Reset OTP';
-  const actionText = isReg ? 'complete your account registration' : 'reset your account password';
+  let subject = 'ClassSync — Account Verification OTP';
+  let actionText = 'complete your account action';
+
+  if (purpose === 'registration') {
+    subject = 'ClassSync — Verify Your Account OTP';
+    actionText = 'complete your account registration';
+  } else if (purpose === 'password_reset') {
+    subject = 'ClassSync — Password Reset OTP';
+    actionText = 'reset your account password';
+  } else if (purpose === 'email_change') {
+    subject = 'ClassSync — Verify New Email Address OTP';
+    actionText = 'verify and update your new email address';
+  }
 
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">

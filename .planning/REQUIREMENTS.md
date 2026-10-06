@@ -9,11 +9,11 @@
 
 ### User Profile & Identity Features
 
-- [ ] **`USER-PROFILE-01` (DB Extension):** Update database schema to add `bio` (TEXT), `github_link` (VARCHAR), `linkedin_link` (VARCHAR), and `website_link` (VARCHAR) to `users` table with migration/auto-init support.
-- [ ] **`USER-PROFILE-02` (Auth Bug Fix):** Fix `ReferenceError: mockUserId is not defined` in `src/middleware/auth.js` `verifyToken` function to prevent unhandled 500 server crashes.
-- [ ] **`USER-PROFILE-03` (Registration Avatar):** Add optional profile picture file upload input to `public/register.html` and `public/js/register.js`. If skipped, assign default fallback avatar.
-- [ ] **`USER-PROFILE-04` (Navbar Integration):** Display user avatar image in top-left navigation (`public/js/navbar.js`) with an interactive dropdown menu for Quick Profile Edit, Theme Toggle, and Logout.
-- [ ] **`USER-PROFILE-05` (Profile Edit View):** Create user profile management UI allowing users to view and update their Name, Email, Password, Bio, Avatar Picture, and Social Links with instant backend persistence.
+- [x] **`USER-PROFILE-01` (DB Extension):** Update database schema to add `bio` (TEXT), `github_link` (VARCHAR), `linkedin_link` (VARCHAR), and `website_link` (VARCHAR) to `users` table with migration/auto-init support.
+- [x] **`USER-PROFILE-02` (Auth Bug Fix):** Fix `ReferenceError: mockUserId is not defined` in `src/middleware/auth.js` `verifyToken` function to prevent unhandled 500 server crashes.
+- [x] **`USER-PROFILE-03` (Registration Avatar):** Add optional profile picture file upload input to `public/register.html` and `public/js/register.js`. If skipped, assign default fallback avatar.
+- [x] **`USER-PROFILE-04` (Navbar Integration):** Display user avatar image in top-left navigation (`public/js/navbar.js`) with an interactive dropdown menu for Quick Profile Edit, Theme Toggle, and Logout.
+- [x] **`USER-PROFILE-05` (Profile Edit View):** Create user profile management UI allowing users to view and update their Name, Email, Password, Bio, Avatar Picture, and Social Links with instant backend persistence.
 
 ---
 

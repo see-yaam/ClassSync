@@ -12,6 +12,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('register-form');
   const btn = document.getElementById('reg-btn');
   const errorBox = document.getElementById('register-error');
+  const avatarInput = document.getElementById('reg-avatar');
+  const avatarPreview = document.getElementById('avatar-preview-container');
+
+  let uploadedAvatarUrl = null;
+
+  if (avatarInput && avatarPreview) {
+    avatarInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        if (file.size > 5 * 1024 * 1024) {
+          showToast('Image size exceeds 5MB limit.', 'error');
+          avatarInput.value = '';
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          avatarPreview.innerHTML = `<img src="${event.target.result}" style="width:100%; height:100%; object-fit:cover;" alt="Avatar Preview">`;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
 
   form.onsubmit = async (e) => {
     e.preventDefault();
@@ -30,12 +52,42 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     btn.disabled = true;
-    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Sending OTP...`;
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Processing...`;
 
     try {
+      // If user selected an avatar image, upload it first
+      const avatarFile = avatarInput && avatarInput.files[0];
+      if (avatarFile) {
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Uploading picture...`;
+        const base64Data = await new Promise((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(r.result);
+          r.onerror = err => reject(err);
+          r.readAsDataURL(avatarFile);
+        });
+
+        const uploadRes = await apiFetch('/upload', {
+          method: 'POST',
+          body: JSON.stringify({
+            filename: avatarFile.name,
+            filedata: base64Data
+          })
+        });
+
+        if (uploadRes.success && uploadRes.data?.url) {
+          uploadedAvatarUrl = uploadRes.data.url;
+        }
+      }
+
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Sending OTP...`;
       const res = await apiFetch('/auth/register', {
         method: 'POST',
-        body: JSON.stringify({ full_name: fullName, email, password })
+        body: JSON.stringify({
+          full_name: fullName,
+          email,
+          password,
+          profile_picture_url: uploadedAvatarUrl
+        })
       });
 
       showToast(res.message, 'success');

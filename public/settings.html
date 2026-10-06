@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Account Settings - ClassSync</title>
+  <meta name="description" content="Manage your ClassSync account security, update your email address via OTP, change password, and configure notifications.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .settings-header {
+      margin-bottom: 2rem;
+    }
+
+    .settings-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+    }
+
+    @media (max-width: 900px) {
+      .settings-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.85rem 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .toggle-row:last-child {
+      border-bottom: none;
+    }
+
+    .toggle-label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    .toggle-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--text-main);
+    }
+
+    .toggle-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 46px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: var(--border-color);
+      transition: .3s;
+      border-radius: 24px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--primary-color);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(22px);
+    }
+
+    .otp-box {
+      background: var(--table-head-bg);
+      border: 1px solid var(--primary-color);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-top: 1rem;
+      animation: fadeInUp 0.3s ease;
+    }
+
+    .danger-zone-card {
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      background: rgba(239, 68, 68, 0.03);
+    }
+
+    [data-theme="dark"] .danger-zone-card {
+      background: rgba(239, 68, 68, 0.08);
+    }
+  </style>
+</head>
+<body>
+  <div id="navbar-container"></div>
+
+  <main class="container" style="max-width: 1050px; padding-top: 2rem; padding-bottom: 3rem;">
+    <!-- Page Title -->
+    <div class="settings-header">
+      <h1 class="page-title" style="display: flex; align-items: center; gap: 0.6rem;">
+        <i class="fa-solid fa-sliders" style="color: var(--primary-color);"></i> Account Settings
+      </h1>
+      <p class="card-subtitle">Manage login security, update your email via OTP verification, set preferences, and configure notification alerts.</p>
+    </div>
+
+    <div class="settings-grid">
+      <!-- Left Column: Email & Password Security -->
+      <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        
+        <!-- Email Change Card with OTP -->
+        <div class="card">
+          <div class="card-header" style="margin-bottom: 1.25rem;">
+            <h2 class="card-title" style="font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem;">
+              <i class="fa-solid fa-envelope-circle-check" style="color: var(--primary-color);"></i> Change Email Address
+            </h2>
+          </div>
+
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Changing your email requires verifying a 6-digit OTP code sent to your new email address. Once verified, your old email will be permanently replaced and can no longer be used for login.
+          </p>
+
+          <form id="email-change-form">
+            <div class="form-group">
+              <label for="current-email-display">Current Email Address</label>
+              <div style="position: relative;">
+                <input type="email" id="current-email-display" class="form-control" style="background-color: var(--table-head-bg);" readonly>
+                <i class="fa-solid fa-lock" style="position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="new-email-input">New Email Address *</label>
+              <input type="email" id="new-email-input" class="form-control" placeholder="enter_new_email@domain.com" required>
+            </div>
+
+            <button type="button" id="request-email-otp-btn" class="btn btn-primary btn-block">
+              <i class="fa-solid fa-paper-plane"></i> Send Verification OTP Code
+            </button>
+
+            <!-- OTP Verification Box (Shown after OTP requested) -->
+            <div id="email-otp-container" class="otp-box" style="display: none;">
+              <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-weight: 700; color: var(--primary-color);">
+                <i class="fa-solid fa-shield-keyhole"></i> Enter 6-Digit OTP Verification Code
+              </div>
+              <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">
+                An OTP code was sent to <strong id="sent-otp-target-email">new_email@domain.com</strong>. Enter it below to complete email change:
+              </p>
+
+              <div class="form-group">
+                <input type="text" id="email-otp-code-input" class="form-control" placeholder="123456" maxlength="6" style="letter-spacing: 4px; font-size: 1.2rem; font-weight: 700; text-align: center;">
+              </div>
+
+              <button type="button" id="verify-email-otp-btn" class="btn btn-success btn-block">
+                <i class="fa-solid fa-check-double"></i> Verify & Update Email Address
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Change Password Card -->
+        <div class="card">
+          <div class="card-header" style="margin-bottom: 1.25rem;">
+            <h2 class="card-title" style="font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem;">
+              <i class="fa-solid fa-key" style="color: var(--primary-color);"></i> Change Password
+            </h2>
+          </div>
+
+          <form id="settings-password-form">
+            <div class="form-group">
+              <label for="set-pass-current">Current Password *</label>
+              <input type="password" id="set-pass-current" class="form-control" placeholder="Enter current password" required>
+            </div>
+
+            <div class="form-group">
+              <label for="set-pass-new">New Password *</label>
+              <input type="password" id="set-pass-new" class="form-control" placeholder="Minimum 6 characters" required>
+            </div>
+
+            <div class="form-group">
+              <label for="set-pass-confirm">Confirm New Password *</label>
+              <input type="password" id="set-pass-confirm" class="form-control" placeholder="Re-enter new password" required>
+            </div>
+
+            <button type="submit" id="settings-change-pass-btn" class="btn btn-secondary btn-block">
+              <i class="fa-solid fa-shield-halved"></i> Update Password
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Right Column: Notification Preferences & Account Management -->
+      <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        
+        <!-- Notification Preferences Card -->
+        <div class="card">
+          <div class="card-header" style="margin-bottom: 1.25rem;">
+            <h2 class="card-title" style="font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem;">
+              <i class="fa-solid fa-bell-concierge" style="color: var(--primary-color);"></i> Notification Preferences
+            </h2>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-label">
+              <span class="toggle-title">Email Notifications</span>
+              <span class="toggle-desc">Receive email alerts for new assignments & grades</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="pref-email-noti" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-label">
+              <span class="toggle-title">Deadline Warning Warnings</span>
+              <span class="toggle-desc">Get notified 1 hour before homework deadlines expire</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="pref-deadline-noti" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-label">
+              <span class="toggle-title">Live Class Popup Announcements</span>
+              <span class="toggle-desc">Show interactive popups when an instructor starts a live class</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="pref-live-noti" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <button type="button" id="save-preferences-btn" class="btn btn-outline btn-block" style="margin-top: 1.25rem;">
+            <i class="fa-solid fa-floppy-disk"></i> Save Preferences
+          </button>
+        </div>
+
+        <!-- Session & Device Info Card -->
+        <div class="card">
+          <div class="card-header" style="margin-bottom: 1rem;">
+            <h2 class="card-title" style="font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem;">
+              <i class="fa-solid fa-desktop" style="color: var(--primary-color);"></i> Session & Device Security
+            </h2>
+          </div>
+
+          <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+            <strong>Current Active Browser Session:</strong><br>
+            <span id="session-device-text">Windows Device — Web Browser</span><br>
+            <span style="font-size: 0.78rem; opacity: 0.8;">Last authenticated: <span id="session-last-login">Just now</span></span>
+          </div>
+
+          <button type="button" class="btn btn-outline btn-sm" onclick="logout()" style="width: 100%;">
+            <i class="fa-solid fa-right-from-bracket"></i> Sign Out of Current Browser
+          </button>
+        </div>
+
+        <!-- Danger Zone Card -->
+        <div class="card danger-zone-card">
+          <div class="card-header" style="margin-bottom: 0.75rem;">
+            <h2 class="card-title" style="font-size: 1.1rem; color: var(--status-red); display: flex; align-items: center; gap: 0.5rem;">
+              <i class="fa-solid fa-triangle-exclamation"></i> Danger Zone
+            </h2>
+          </div>
+
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Deactivating your ClassSync account will disable your access to classrooms, submissions, and active live sessions.
+          </p>
+
+          <button type="button" id="deactivate-account-btn" class="btn btn-outline btn-sm" style="color: var(--status-red); border-color: rgba(239,68,68,0.4); width: 100%;">
+            <i class="fa-solid fa-user-slash"></i> Deactivate My Account
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/navbar.js"></script>
+  <script src="/js/settings.js"></script>
+</body>
+</html>

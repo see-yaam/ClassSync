@@ -14,6 +14,7 @@ const verifyToken = async (req, res, next) => {
     }
 
     // Fallback for development/testing: check x-user-id header
+    const mockUserId = req.headers['x-user-id'] || req.query.mock_user_id;
     const allowMock = process.env.ALLOW_MOCK_AUTH === 'true' || process.env.NODE_ENV === 'test';
 
     let userId = null;
@@ -33,7 +34,7 @@ const verifyToken = async (req, res, next) => {
 
     // Fetch user details from database
     const [rows] = await db.query(
-      'SELECT user_id, email, full_name, profile_picture_url FROM users WHERE user_id = ? AND is_active = true',
+      'SELECT user_id, email, full_name, profile_picture_url, bio, github_link, linkedin_link, website_link FROM users WHERE user_id = ? AND is_active = true',
       [userId]
     );
 

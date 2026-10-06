@@ -12,7 +12,7 @@ const pendingRegistrations = new Map();
 // POST /api/auth/register - Step 1: Submit email, password, full_name (Hold pending, send OTP)
 const register = async (req, res) => {
   try {
-    const { email, password, full_name } = req.body;
+    const { email, password, full_name, profile_picture_url } = req.body;
 
     if (!email || !password || !full_name) {
       return res.status(400).json({ success: false, message: 'Email, password, and full name are required' });
@@ -38,6 +38,7 @@ const register = async (req, res) => {
       email: cleanEmail,
       password_hash: passwordHash,
       full_name: full_name.trim(),
+      profile_picture_url: profile_picture_url || null,
       createdAt: Date.now()
     });
 
@@ -111,6 +112,7 @@ const verifyOtp = async (req, res) => {
 
     // NOW create the actual row in users table
     const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(pendingUser.full_name)}&background=2563eb&color=fff`;
+    const userAvatar = pendingUser.profile_picture_url || defaultAvatar;
 
     // Handle existing unverified row if any
     await db.query(`DELETE FROM users WHERE email = ? AND is_verified = false`, [cleanEmail]);
@@ -118,7 +120,7 @@ const verifyOtp = async (req, res) => {
     const [userResult] = await db.query(
       `INSERT INTO users (email, password_hash, full_name, profile_picture_url, is_verified, is_active, last_login)
        VALUES (?, ?, ?, ?, true, true, NOW())`,
-      [cleanEmail, pendingUser.password_hash, pendingUser.full_name, defaultAvatar]
+      [cleanEmail, pendingUser.password_hash, pendingUser.full_name, userAvatar]
     );
 
     const userId = userResult.insertId;
@@ -147,7 +149,7 @@ const verifyOtp = async (req, res) => {
         user_id: userId,
         email: cleanEmail,
         full_name: pendingUser.full_name,
-        profile_picture_url: defaultAvatar
+        profile_picture_url: userAvatar
       }
     });
   } catch (error) {
