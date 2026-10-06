@@ -49,7 +49,8 @@ let currentModalSessionId = null;
   }
 })();
 
-async function renderNavbar() {
+// Render shared Navbar across all pages
+document.addEventListener('DOMContentLoaded', async () => {
   const navbarContainer = document.getElementById('navbar-container');
   if (!navbarContainer) return;
 
@@ -77,10 +78,6 @@ async function renderNavbar() {
         </button>
 
         ${token ? `
-          <a href="/dashboard.html" class="btn btn-outline btn-sm me-2" style="display:inline-flex; align-items:center; gap:0.4rem; font-weight:600;">
-            <i class="fa-solid fa-gauge-high"></i> Dashboard
-          </a>
-
           <div id="navbar-live-btn-container" style="display: none; align-items: center;">
             <a id="navbar-live-btn" href="#" class="btn btn-warning btn-sm pulsing-btn">
               <i class="fa-solid fa-video fa-beat-fade"></i> Join Live Class
@@ -119,9 +116,6 @@ async function renderNavbar() {
                 </div>
               </div>
               <div class="dropdown-divider"></div>
-              <a href="/dashboard.html" class="dropdown-item">
-                <i class="fa-solid fa-gauge-high"></i> Dashboard
-              </a>
               <a href="/profile.html" class="dropdown-item">
                 <i class="fa-solid fa-user"></i> My Profile
               </a>
@@ -294,14 +288,9 @@ async function renderNavbar() {
       setInterval(() => {
         if (getAuthToken()) pollClassroomAlertBanner();
       }, 30000);
+    }
   }
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', renderNavbar);
-} else {
-  renderNavbar();
-}
+});
 
 // ===== Classroom Active Alert Banner =====
 // In-memory dismiss flag — resets every time the page loads (intended behaviour)
