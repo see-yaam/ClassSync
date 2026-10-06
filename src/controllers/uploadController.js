@@ -3,11 +3,6 @@ const path = require('path');
 
 const uploadDirectory = path.join(__dirname, '../../public/uploads');
 
-// Ensure public/uploads directory exists
-if (!fs.existsSync(uploadDirectory)) {
-  fs.mkdirSync(uploadDirectory, { recursive: true });
-}
-
 /**
  * POST /api/upload - Handle file upload (base64 or file payload)
  */
@@ -35,15 +30,28 @@ const uploadFile = async (req, res) => {
     const uniqueFilename = `${Date.now()}_${sanitizedFilename}`;
     const filePath = path.join(uploadDirectory, uniqueFilename);
 
-    fs.writeFileSync(filePath, buffer);
+    let finalUrl = `/uploads/${uniqueFilename}`;
 
-    const relativeUrl = `/uploads/${uniqueFilename}`;
+    try {
+      if (!fs.existsSync(uploadDirectory)) {
+        fs.mkdirSync(uploadDirectory, { recursive: true });
+      }
+      fs.writeFileSync(filePath, buffer);
+    } catch (fsErr) {
+      console.warn('⚠️ Serverless read-only filesystem detected. Falling back to Data URI:', fsErr.message);
+      if (filedata.startsWith('data:')) {
+        finalUrl = filedata;
+      } else {
+        const mimeType = filename.endsWith('.png') ? 'image/png' : filename.endsWith('.gif') ? 'image/gif' : 'image/jpeg';
+        finalUrl = `data:${mimeType};base64,${base64Content}`;
+      }
+    }
 
     res.status(201).json({
       success: true,
       message: 'File uploaded successfully',
       data: {
-        url: relativeUrl,
+        url: finalUrl,
         filename: uniqueFilename,
         original_name: filename,
         size: buffer.length

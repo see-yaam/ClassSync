@@ -27,7 +27,7 @@ CREATE TABLE `users` (
   `email` varchar(255) UNIQUE NOT NULL,
   `password_hash` varchar(255) NOT NULL,
   `full_name` varchar(100) NOT NULL,
-  `profile_picture_url` varchar(500),
+  `profile_picture_url` mediumtext NULL,
   `phone_number` varchar(20) NULL,
   `bio` text NULL,
   `github_link` varchar(255) NULL,

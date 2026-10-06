@@ -136,6 +136,7 @@ if (!isVercel) {
         }
         try {
           await db.query(`ALTER TABLE password_reset_otp MODIFY COLUMN otp_purpose VARCHAR(50) NOT NULL DEFAULT 'password_reset'`);
+          await db.query(`ALTER TABLE users MODIFY COLUMN profile_picture_url MEDIUMTEXT`);
         } catch (mErr) {
           // Ignore if already modified
         }
