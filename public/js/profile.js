@@ -121,7 +121,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         newAvatarUrl = uploadRes.data.url;
         avatarPreview.src = newAvatarUrl;
         heroAvatar.src = newAvatarUrl;
-        showToast('Image uploaded! Click "Save Profile Details" to save changes.', 'success');
+
+        // Auto-save to database immediately so it persists across page refresh
+        showToast('Saving profile picture...', 'info');
+        const saveRes = await apiFetch('/users/me', {
+          method: 'PUT',
+          body: JSON.stringify({
+            full_name: fullNameInput.value.trim() || currentUserData?.full_name || 'User',
+            bio: bioInput.value.trim(),
+            github_link: githubInput.value.trim(),
+            linkedin_link: linkedinInput.value.trim(),
+            website_link: websiteInput.value.trim(),
+            profile_picture_url: newAvatarUrl
+          })
+        });
+
+        if (saveRes.success && saveRes.data) {
+          currentUserData = saveRes.data;
+          try {
+            const sj = localStorage.getItem('classsync_user');
+            let storedUser = sj ? JSON.parse(sj) : {};
+            storedUser.profile_picture_url = saveRes.data.profile_picture_url;
+            localStorage.setItem('classsync_user', JSON.stringify(storedUser));
+          } catch (e) {}
+
+          document.querySelectorAll('.nav-avatar-img, .dropdown-avatar-img').forEach(img => {
+            img.src = saveRes.data.profile_picture_url;
+          });
+
+          showToast('Profile picture updated and saved successfully!', 'success');
+        }
       }
     } catch (err) {
       showToast(err.message || 'Failed uploading image', 'error');
@@ -130,12 +159,41 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Reset to Default Avatar Handler
   if (resetAvatarBtn) {
-    resetAvatarBtn.addEventListener('click', () => {
+    resetAvatarBtn.addEventListener('click', async () => {
       const name = fullNameInput.value.trim() || currentUserData?.full_name || 'User';
       newAvatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=2563eb&color=fff`;
-      avatarPreview.src = newAvatarUrl;
-      heroAvatar.src = newAvatarUrl;
-      showToast('Avatar reset to default initials. Save profile to apply.', 'info');
+
+      try {
+        const saveRes = await apiFetch('/users/me', {
+          method: 'PUT',
+          body: JSON.stringify({
+            full_name: name,
+            bio: bioInput.value.trim(),
+            github_link: githubInput.value.trim(),
+            linkedin_link: linkedinInput.value.trim(),
+            website_link: websiteInput.value.trim(),
+            profile_picture_url: newAvatarUrl
+          })
+        });
+
+        if (saveRes.success && saveRes.data) {
+          currentUserData = saveRes.data;
+          try {
+            const sj = localStorage.getItem('classsync_user');
+            let storedUser = sj ? JSON.parse(sj) : {};
+            storedUser.profile_picture_url = saveRes.data.profile_picture_url;
+            localStorage.setItem('classsync_user', JSON.stringify(storedUser));
+          } catch (e) {}
+
+          populateProfile(saveRes.data);
+          document.querySelectorAll('.nav-avatar-img, .dropdown-avatar-img').forEach(img => {
+            img.src = saveRes.data.profile_picture_url;
+          });
+          showToast('Avatar reset to default initials and saved!', 'success');
+        }
+      } catch (err) {
+        showToast(err.message || 'Failed resetting avatar', 'error');
+      }
     });
   }
 

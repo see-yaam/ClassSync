@@ -41,6 +41,69 @@ app.get('*', (req, res, next) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
+const db = require('./config/db');
+const fs = require('fs');
+
+// Automatic DB Schema Initializer & Column Migration Check (Runs on startup)
+let schemaInitialized = false;
+const autoInitSchema = async () => {
+  if (schemaInitialized) return;
+  schemaInitialized = true;
+  try {
+    const [tables] = await db.query(`SHOW TABLES LIKE 'users'`);
+    if (tables.length === 0) {
+      console.log('⚡ Table "users" not found in database. Auto-initializing schema.sql...');
+      const schemaPath = path.join(__dirname, '../schema.sql');
+      const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+
+      const statements = schemaSql
+        .split(';')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+
+      for (const statement of statements) {
+        try {
+          await db.query(statement);
+        } catch (sErr) {
+          // Ignore individual statement warnings
+        }
+      }
+      console.log('✅ DATABASE TABLES AUTOMATICALLY CREATED & INITIALIZED!');
+    } else {
+      console.log('✔ Database tables verified.');
+      // Ensure user profile extension columns exist
+      const columnsToAdd = [
+        { name: 'bio', type: 'TEXT NULL' },
+        { name: 'github_link', type: 'VARCHAR(255) NULL' },
+        { name: 'linkedin_link', type: 'VARCHAR(255) NULL' },
+        { name: 'website_link', type: 'VARCHAR(255) NULL' }
+      ];
+      const [existingCols] = await db.query(`SHOW COLUMNS FROM users`);
+      const colNames = existingCols.map(c => c.Field);
+      for (const col of columnsToAdd) {
+        if (!colNames.includes(col.name)) {
+          try {
+            await db.query(`ALTER TABLE users ADD COLUMN ${col.name} ${col.type}`);
+            console.log(`✅ Added missing column "${col.name}" to users table.`);
+          } catch (colErr) {
+            console.warn(`Could not add column ${col.name}:`, colErr.message);
+          }
+        }
+      }
+      try {
+        await db.query(`ALTER TABLE password_reset_otp MODIFY COLUMN otp_purpose VARCHAR(50) NOT NULL DEFAULT 'password_reset'`);
+        await db.query(`ALTER TABLE users MODIFY COLUMN profile_picture_url MEDIUMTEXT`);
+      } catch (mErr) {
+        // Ignore if already modified
+      }
+    }
+  } catch (err) {
+    console.warn('Auto schema init check:', err.message);
+  }
+};
+
+autoInitSchema();
+
 // Export app for Vercel serverless functions
 module.exports = app;
 
@@ -48,7 +111,6 @@ module.exports = app;
 const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true';
 
 if (!isVercel) {
-  const db = require('./config/db');
   const { createNotification } = require('./utils/notificationHelper');
 
   // Background interval runner: Check approaching homework deadlines every 5 minutes
@@ -88,65 +150,6 @@ if (!isVercel) {
       console.error('Error in deadline background runner:', error);
     }
   };
-
-  const fs = require('fs');
-
-  // Automatic DB Schema Initializer (Runs on startup if database is empty)
-  const autoInitSchema = async () => {
-    try {
-      const [tables] = await db.query(`SHOW TABLES LIKE 'users'`);
-      if (tables.length === 0) {
-        console.log('⚡ Table "users" not found in database. Auto-initializing schema.sql...');
-        const schemaPath = path.join(__dirname, '../schema.sql');
-        const schemaSql = fs.readFileSync(schemaPath, 'utf8');
-
-        const statements = schemaSql
-          .split(';')
-          .map(s => s.trim())
-          .filter(s => s.length > 0);
-
-        for (const statement of statements) {
-          try {
-            await db.query(statement);
-          } catch (sErr) {
-            // Ignore individual statement warnings
-          }
-        }
-        console.log('✅ DATABASE TABLES AUTOMATICALLY CREATED & INITIALIZED!');
-      } else {
-        console.log('✔ Database tables verified.');
-        // Ensure user profile extension columns exist
-        const columnsToAdd = [
-          { name: 'bio', type: 'TEXT NULL' },
-          { name: 'github_link', type: 'VARCHAR(255) NULL' },
-          { name: 'linkedin_link', type: 'VARCHAR(255) NULL' },
-          { name: 'website_link', type: 'VARCHAR(255) NULL' }
-        ];
-        const [existingCols] = await db.query(`SHOW COLUMNS FROM users`);
-        const colNames = existingCols.map(c => c.Field);
-        for (const col of columnsToAdd) {
-          if (!colNames.includes(col.name)) {
-            try {
-              await db.query(`ALTER TABLE users ADD COLUMN ${col.name} ${col.type}`);
-              console.log(`✅ Added missing column "${col.name}" to users table.`);
-            } catch (colErr) {
-              console.warn(`Could not add column ${col.name}:`, colErr.message);
-            }
-          }
-        }
-        try {
-          await db.query(`ALTER TABLE password_reset_otp MODIFY COLUMN otp_purpose VARCHAR(50) NOT NULL DEFAULT 'password_reset'`);
-          await db.query(`ALTER TABLE users MODIFY COLUMN profile_picture_url MEDIUMTEXT`);
-        } catch (mErr) {
-          // Ignore if already modified
-        }
-      }
-    } catch (err) {
-      console.warn('Auto schema init check:', err.message);
-    }
-  };
-
-  autoInitSchema();
 
   const { startScheduledSessionChecker } = require('./utils/scheduledSessionChecker');
   startScheduledSessionChecker();
