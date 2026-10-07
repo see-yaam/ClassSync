@@ -16,6 +16,7 @@
   <div id="navbar-container"></div>
 
   <div class="classroom-layout">
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
     <!-- LEFT SIDEBAR NAVIGATION -->
     <aside class="sidebar">
       <nav class="sidebar-nav">
@@ -64,7 +65,10 @@
       <!-- Classroom Header -->
       <div class="page-header" style="padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
         <div>
-          <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+            <button id="mobile-sidebar-btn" class="btn btn-outline btn-sm mobile-sidebar-inline-toggle" title="Classroom Menu">
+              <i class="fa-solid fa-bars"></i>
+            </button>
             <h1 class="page-title" id="classroom-title">Classroom Detail</h1>
             <div id="classroom-role-badge-container"></div>
           </div>
@@ -250,7 +254,7 @@
           <p class="card-subtitle" style="margin: 0;">Group chat with classroom members and direct messages with instructors & learners</p>
         </div>
 
-        <div style="display: grid; grid-template-columns: 280px 1fr; gap: 1.25rem; min-height: 520px;">
+        <div class="chat-layout-grid">
           <!-- LEFT PANE: Channels & Contact List -->
           <div class="card" style="padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">
             <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.25rem;">Chat Channels</div>

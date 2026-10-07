@@ -74,12 +74,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       </a>
       <div class="nav-controls">
         <button class="theme-toggle-btn" id="theme-toggle-btn" title="Toggle Dark/Light Mode">
-          ${currentTheme === 'dark' ? '<i class="fa-solid fa-sun"></i> Light Mode' : '<i class="fa-solid fa-moon"></i> Dark Mode'}
+          ${currentTheme === 'dark' ? '<i class="fa-solid fa-sun"></i>' : '<i class="fa-solid fa-moon"></i>'}
         </button>
 
         ${token ? `
           ${!window.location.pathname.includes('dashboard.html') ? `
-            <a href="/dashboard.html" class="btn btn-outline btn-sm" title="Go to Dashboard">
+            <a href="/dashboard.html" class="btn btn-outline btn-sm nav-dashboard-link" title="Go to Dashboard">
               <i class="fa-solid fa-chart-line"></i> Dashboard
             </a>
           ` : ''}
@@ -158,7 +158,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     localStorage.setItem('classsync_theme', newTheme);
     const themeBtn = document.getElementById('theme-toggle-btn');
     const dropdownThemeBtn = document.getElementById('dropdown-theme-toggle');
-    const labelHtml = newTheme === 'dark' ? '<i class="fa-solid fa-sun"></i> Light Mode' : '<i class="fa-solid fa-moon"></i> Dark Mode';
+    const labelHtml = newTheme === 'dark' ? '<i class="fa-solid fa-sun"></i>' : '<i class="fa-solid fa-moon"></i>';
     if (themeBtn) themeBtn.innerHTML = labelHtml;
     if (dropdownThemeBtn) dropdownThemeBtn.innerHTML = labelHtml;
   };

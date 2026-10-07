@@ -53,8 +53,28 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (tabName === 'tab-gradings') loadGradingsTab();
       if (tabName === 'tab-requests') loadRequestsTab();
       if (tabName === 'tab-settings') loadSettingsTab();
+
+      // Close mobile sidebar on tab select
+      const sidebar = document.querySelector('.sidebar');
+      const sidebarOverlay = document.getElementById('sidebar-overlay');
+      if (sidebar && sidebarOverlay) {
+        sidebar.classList.remove('active');
+        sidebarOverlay.classList.remove('active');
+      }
     });
   });
+
+  // Mobile Sidebar Toggle Logic
+  const mobileSidebarBtn = document.getElementById('mobile-sidebar-btn');
+  const sidebarOverlay = document.getElementById('sidebar-overlay');
+  if (mobileSidebarBtn && sidebarOverlay) {
+    const toggleSidebar = () => {
+      document.querySelector('.sidebar').classList.toggle('active');
+      sidebarOverlay.classList.toggle('active');
+    };
+    mobileSidebarBtn.addEventListener('click', toggleSidebar);
+    sidebarOverlay.addEventListener('click', toggleSidebar);
+  }
 
   // Load Classroom Details & Header
   const loadClassroomHeader = async () => {

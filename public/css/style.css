@@ -597,44 +597,171 @@ a:hover {
   background-color: var(--bg-color);
 }
 
-/* Responsive Mobile Sidebar */
+.chat-layout-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 1.25rem;
+  min-height: 520px;
+}
+
+.mobile-sidebar-inline-toggle {
+  display: none !important;
+}
+
+/* Off-Canvas Mobile Sidebar & Mobile Overrides */
 @media (max-width: 768px) {
-  .classroom-layout {
+  /* Navbar adjustments */
+  .navbar {
+    padding: 1rem;
+  }
+
+  .nav-controls {
+    gap: 0.75rem;
+  }
+
+  .nav-user-name,
+  .nav-avatar-arrow,
+  .nav-dashboard-link {
+    display: none !important;
+  }
+
+  .nav-avatar-btn {
+    padding: 0;
+    border: none;
+    background: transparent;
+    border-radius: 50%;
+    gap: 0;
+    width: auto;
+    height: auto;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .nav-avatar-btn:hover,
+  .nav-avatar-btn:active {
+    box-shadow: none !important;
+    border-color: transparent !important;
+  }
+
+  .theme-toggle-btn {
+    padding: 0.35rem 0.6rem;
+  }
+
+  /* Classroom & Dashboard Layout */
+  .page-header {
     flex-direction: column;
-    height: auto;
-    overflow: visible;
+    align-items: flex-start;
+    gap: 1.25rem;
   }
 
-  .sidebar {
+  .page-header #header-actions {
     width: 100%;
-    height: auto;
+    flex-direction: column;
+  }
+
+  .page-header #header-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .classroom-layout {
+    display: block;
+  }
+
+  /* Off-canvas Sidebar Drawer */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: -280px; /* Hide completely off-screen */
+    width: 280px;
+    height: 100vh;
+    z-index: 1050;
+    transition: left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    background-color: var(--card-bg);
+    box-shadow: 4px 0 15px rgba(0, 0, 0, 0.1);
     border-right: none;
-    border-bottom: 1px solid var(--border-color);
-    padding: 0.65rem 0.5rem;
-    box-shadow: none;
-    overflow-x: auto;
-    overflow-y: visible;
+    padding-top: 1.25rem;
   }
 
-  .sidebar-nav {
-    flex-direction: row;
-    gap: 0.35rem;
+  .sidebar.active {
+    left: 0;
   }
 
-  .sidebar-item {
-    white-space: nowrap;
-    padding: 0.6rem 0.9rem;
-    font-size: 0.825rem;
+  .sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0,0,0,0.5);
+    z-index: 1049;
+    display: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
   }
 
-  .sidebar-item:hover {
-    transform: none;
+  .sidebar-overlay.active {
+    display: block;
+    opacity: 1;
+  }
+
+  .mobile-sidebar-inline-toggle {
+    display: inline-flex !important;
+  }
+
+  .chat-layout-grid {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  /* Bottom sheet modals */
+  .modal-content {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    max-height: 90vh;
+    border-radius: 24px 24px 0 0;
+    margin: 0;
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow-y: auto;
+  }
+
+  .modal.active .modal-content {
+    transform: translateY(0);
+    animation: none;
+  }
+
+  /* Notifications dropdown as bottom sheet */
+  .notifications-dropdown {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100vw;
+    max-height: 80vh;
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -5px 25px rgba(0,0,0,0.2);
+    z-index: 2005;
   }
 
   .classroom-content {
+    padding: 1.5rem 1rem;
     height: auto;
     overflow-y: visible;
-    padding: 1.5rem 1rem;
+  }
+}
+
+/* Hide mobile-specific elements on desktop */
+@media (min-width: 769px) {
+  .hamburger-btn,
+  .mobile-sidebar-toggle,
+  .sidebar-overlay,
+  .mobile-drawer-overlay {
+    display: none !important;
   }
 }
 
@@ -1961,9 +2088,19 @@ th {
 .nav-avatar-img {
   width: 34px;
   height: 34px;
+  flex-shrink: 0;
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid var(--primary-color);
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+html:not([data-theme="dark"]) .nav-avatar-img {
+  box-shadow: 0 0 7px var(--primary-color);
+}
+
+html:not([data-theme="dark"]) .nav-avatar-btn:hover .nav-avatar-img {
+  box-shadow: 0 0 12px var(--primary-color);
 }
 
 .nav-user-name {
