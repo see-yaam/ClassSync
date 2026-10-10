@@ -757,6 +757,16 @@ const leaveClassroom = async (req, res) => {
       [classroomId, userId]
     );
 
+    // Clean up any pending learner alerts for this learner in this classroom
+    try {
+      await db.query(
+        `DELETE FROM learner_alerts WHERE classroom_id = ? AND learner_id = ?`,
+        [classroomId, userId]
+      );
+    } catch (alertErr) {
+      console.warn('Could not clean up learner alerts on leave:', alertErr.message);
+    }
+
     res.json({
       success: true,
       message: 'You have left the classroom successfully'

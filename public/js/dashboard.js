@@ -571,11 +571,23 @@ function renderEnrolledClassrooms(enrolled) {
 
   if (enrolled && enrolled.length > 0) {
     container.innerHTML = enrolled.map(c => `
-      <div class="classroom-mini-card">
+      <div class="classroom-mini-card" id="enrolled-card-${c.classroom_id}">
         <div>
           <div class="mini-card-header">
-            <a href="/classroom.html?id=${c.classroom_id}" class="mini-card-title">${escapeHtml(c.classroom_name)}</a>
-            <span class="mini-card-code">#${escapeHtml(c.room_number)}</span>
+            <a href="/classroom.html?id=${c.classroom_id}" class="mini-card-title" title="${escapeHtml(c.classroom_name)}">${escapeHtml(c.classroom_name)}</a>
+            <div class="mini-card-header-right">
+              <span class="mini-card-code">#${escapeHtml(c.room_number)}</span>
+              <div class="card-options-dropdown">
+                <button type="button" class="btn-card-kebab" onclick="toggleCardOptions(event, ${c.classroom_id})" title="Classroom Options" aria-label="Classroom Options">
+                  <i class="fa-solid fa-ellipsis-vertical"></i>
+                </button>
+                <div class="card-options-menu" id="card-options-menu-${c.classroom_id}">
+                  <button type="button" class="card-options-item text-danger" data-classroom-id="${c.classroom_id}" data-classroom-name="${escapeHtml(c.classroom_name)}" onclick="handleLeaveClassroomClick(this, event)">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i> Leave / Quit Classroom
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="mini-card-meta">
             <span><i class="fa-solid fa-user-tie"></i> ${escapeHtml(c.instructor_name || 'Instructor')}</span>
@@ -598,6 +610,137 @@ function renderEnrolledClassrooms(enrolled) {
     `;
   }
 }
+
+// --- Learner Leave Classroom Handlers ---
+let pendingLeaveClassroomId = null;
+let pendingLeaveClassroomName = '';
+
+window.toggleCardOptions = function(event, classroomId) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
+  const menu = document.getElementById(`card-options-menu-${classroomId}`);
+  const isAlreadyActive = menu && menu.classList.contains('active');
+
+  // Close all open menus first
+  document.querySelectorAll('.card-options-menu').forEach(m => m.classList.remove('active'));
+  document.querySelectorAll('.btn-card-kebab').forEach(b => b.classList.remove('active'));
+
+  if (menu && !isAlreadyActive) {
+    menu.classList.add('active');
+    const btn = event.currentTarget || event.target.closest('.btn-card-kebab');
+    if (btn) btn.classList.add('active');
+  }
+};
+
+// Close all card options dropdowns on document click
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.card-options-dropdown')) {
+    document.querySelectorAll('.card-options-menu').forEach(m => m.classList.remove('active'));
+    document.querySelectorAll('.btn-card-kebab').forEach(b => b.classList.remove('active'));
+  }
+});
+
+window.handleLeaveClassroomClick = function(btn, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  const id = btn.getAttribute('data-classroom-id');
+  const name = btn.getAttribute('data-classroom-name');
+  window.openLeaveClassroomModal(id, name);
+};
+
+window.openLeaveClassroomModal = function(classroomId, classroomName) {
+  // Close any open menus
+  document.querySelectorAll('.card-options-menu').forEach(m => m.classList.remove('active'));
+  document.querySelectorAll('.btn-card-kebab').forEach(b => b.classList.remove('active'));
+
+  pendingLeaveClassroomId = classroomId;
+  pendingLeaveClassroomName = classroomName;
+
+  const nameEl = document.getElementById('leave-modal-classroom-name');
+  if (nameEl) {
+    nameEl.textContent = `"${classroomName}"`;
+  }
+
+  const modal = document.getElementById('leave-classroom-confirm-modal');
+  if (modal) {
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+    modal.style.opacity = '1';
+  }
+};
+
+window.closeLeaveModal = function() {
+  const modal = document.getElementById('leave-classroom-confirm-modal');
+  if (modal) {
+    modal.classList.remove('active');
+    modal.style.display = 'none';
+    modal.style.opacity = '0';
+  }
+  pendingLeaveClassroomId = null;
+  pendingLeaveClassroomName = '';
+};
+
+window.executeLeaveClassroom = async function() {
+  if (!pendingLeaveClassroomId) return;
+
+  const confirmBtn = document.getElementById('confirm-leave-btn-action');
+  const originalHtml = confirmBtn ? confirmBtn.innerHTML : '';
+
+  try {
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Leaving...';
+    }
+
+    const classroomId = pendingLeaveClassroomId;
+    const classroomName = pendingLeaveClassroomName;
+
+    const res = await apiFetch(`/classrooms/${classroomId}/leave`, {
+      method: 'DELETE'
+    });
+
+    if (res && res.success) {
+      if (typeof showToast === 'function') {
+        showToast(`You have successfully left "${classroomName}". Access removed.`, 'success');
+      }
+
+      window.closeLeaveModal();
+
+      // Smooth card removal animation
+      const cardEl = document.getElementById(`enrolled-card-${classroomId}`);
+      if (cardEl) {
+        cardEl.style.transition = 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
+        cardEl.style.opacity = '0';
+        cardEl.style.transform = 'scale(0.85)';
+        setTimeout(async () => {
+          cardEl.remove();
+          // Reload dashboard summary to refresh all stats (enrolled count, deadlines, etc.)
+          await loadDashboardSummary();
+        }, 300);
+      } else {
+        await loadDashboardSummary();
+      }
+    } else {
+      throw new Error(res?.message || 'Failed to leave classroom.');
+    }
+  } catch (err) {
+    console.error('Error leaving classroom:', err);
+    if (typeof showToast === 'function') {
+      showToast(err.message || 'Error leaving classroom.', 'error');
+    }
+  } finally {
+    if (confirmBtn) {
+      confirmBtn.disabled = false;
+      confirmBtn.innerHTML = originalHtml;
+    }
+  }
+};
+
 
 // 3. Pending Grading Queue Renderer
 function renderGradingQueue(pending) {

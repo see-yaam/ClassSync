@@ -31,7 +31,7 @@ router.post('/classrooms', verifyToken, createClassroom);
 router.post('/classrooms/join', verifyToken, joinClassroom);
 router.get('/classrooms', verifyToken, getUserClassrooms);
 router.get('/classrooms/:id', verifyToken, requireClassroomRole(['instructor', 'TA', 'learner'], 'classroom'), getClassroomById);
-router.delete('/classrooms/:id/leave', verifyToken, requireClassroomRole(['learner'], 'classroom'), leaveClassroom);
+router.delete('/classrooms/:id/leave', verifyToken, requireClassroomRole(['learner', 'TA'], 'classroom'), leaveClassroom);
 router.delete('/classrooms/:id', verifyToken, requireClassroomRole(['instructor'], 'classroom'), deleteClassroom);
 
 // Student Info & Attendance Roster & Submissions
