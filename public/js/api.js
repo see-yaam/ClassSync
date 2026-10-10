@@ -11,8 +11,21 @@ function escapeHtml(str) {
 }
 
 // Utility: Global Date Formatter (DD/MM/YYYY, h:mm A)
+window.parseDbDate = function(dateStr) {
+  if (!dateStr) return new Date();
+  if (typeof dateStr === 'string' && !dateStr.endsWith('Z') && !dateStr.match(/[+-]\d{2}:?\d{2}$/)) {
+    dateStr = dateStr.replace(' ', 'T');
+    if (!dateStr.endsWith('Z')) dateStr += 'Z';
+  }
+  return new Date(dateStr);
+};
+
 function formatDate(dateStr) {
   if (!dateStr) return '';
+  if (typeof dateStr === 'string' && !dateStr.endsWith('Z') && !dateStr.match(/[+-]\d{2}:?\d{2}$/)) {
+    dateStr = dateStr.replace(' ', 'T');
+    if (!dateStr.endsWith('Z')) dateStr += 'Z';
+  }
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return dateStr;
   const day = String(d.getDate()).padStart(2, '0');
@@ -28,6 +41,10 @@ function formatDate(dateStr) {
 
 function formatDateOnly(dateStr) {
   if (!dateStr) return '';
+  if (typeof dateStr === 'string' && !dateStr.endsWith('Z') && !dateStr.match(/[+-]\d{2}:?\d{2}$/)) {
+    dateStr = dateStr.replace(' ', 'T');
+    if (!dateStr.endsWith('Z')) dateStr += 'Z';
+  }
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return dateStr;
   const day = String(d.getDate()).padStart(2, '0');
@@ -63,7 +80,32 @@ function logout() {
   window.location.href = '/login.html';
 }
 
+const pendingApiRequests = new Map();
+
 async function apiFetch(endpoint, options = {}) {
+  const method = (options.method || 'GET').toUpperCase();
+  
+  if (['POST', 'PUT', 'DELETE'].includes(method)) {
+    const reqKey = `${method}:${endpoint}:${options.body || ''}`;
+    
+    if (pendingApiRequests.has(reqKey)) {
+      return pendingApiRequests.get(reqKey);
+    }
+  
+    const promise = executeFetch(endpoint, options);
+    pendingApiRequests.set(reqKey, promise);
+    
+    try {
+      return await promise;
+    } finally {
+      pendingApiRequests.delete(reqKey);
+    }
+  } else {
+    return executeFetch(endpoint, options);
+  }
+}
+
+async function executeFetch(endpoint, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers || {})
@@ -410,4 +452,62 @@ if (typeof MutationObserver !== 'undefined') {
   observer.observe(document.body, { childList: true, subtree: true });
 }
 
+window.getAttachmentLabel = function(url) {
+  if (!url) return '';
+  if (url.startsWith('data:')) {
+    const nameMatch = url.match(/;name=([^;]+)/);
+    if (nameMatch) {
+      return decodeURIComponent(nameMatch[1]);
+    }
+    const mimeMatch = url.match(/data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+).*?,/);
+    const mime = mimeMatch ? mimeMatch[1].toLowerCase() : '';
+    if (mime.includes('pdf')) return 'PDF';
+    if (mime.includes('word')) return 'DOCX';
+    if (mime.includes('presentation') || mime.includes('powerpoint')) return 'PPTX';
+    if (mime.includes('image')) return 'IMAGE';
+    if (mime.includes('text')) return 'TEXT';
+    return 'FILE';
+  }
+  const filename = url.split('/').pop();
+  return decodeURIComponent(filename).replace(/^\d+_/, '');
+};
 
+window.openAttachment = function(url, e) {
+  if (e && typeof e.preventDefault === 'function') {
+    e.preventDefault();
+  }
+  if (e && typeof e.stopPropagation === 'function') {
+    e.stopPropagation();
+  }
+  let downloadName = 'attachment';
+  if (typeof e === 'string' && e.trim().length > 0) {
+    downloadName = e.trim();
+  } else if (url.startsWith('data:')) {
+    const nameMatch = url.match(/;name=([^;]+)/);
+    if (nameMatch) {
+      downloadName = decodeURIComponent(nameMatch[1]);
+    } else {
+      downloadName += '.' + window.getAttachmentLabel(url).toLowerCase();
+    }
+  } else {
+    downloadName = window.getAttachmentLabel(url);
+  }
+  
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = downloadName;
+  a.target = '_blank';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+};
+
+window.truncateFilename = function(filename) {
+  if (!filename) return '';
+  if (filename.length <= 25) return filename;
+  const parts = filename.split('.');
+  if (parts.length === 1) return filename.substring(0, 20) + '...';
+  const ext = '.' + parts.pop();
+  const name = parts.join('.');
+  return name.substring(0, 15) + '...' + ext;
+};

@@ -70,7 +70,7 @@ CREATE TABLE `classrooms` (
   `visibility` enum('public','private') NOT NULL DEFAULT 'private',
   `is_paid` tinyint(1) DEFAULT 0,
   `price` decimal(10,2) DEFAULT NULL,
-  `cover_photo_url` varchar(500) DEFAULT NULL,
+  `cover_photo_url` longtext DEFAULT NULL,
   `attendance_threshold_percent` int(11) DEFAULT 75
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -314,7 +314,7 @@ CREATE TABLE `homework_answers` (
   `question_id` int(11) NOT NULL,
   `instructor_id` int(11) NOT NULL,
   `answer_text` text DEFAULT NULL,
-  `answer_file_url` varchar(500) DEFAULT NULL,
+  `answer_file_url` longtext DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -592,7 +592,7 @@ CREATE TABLE `problem_answers` (
   `problem_id` int(11) NOT NULL,
   `instructor_id` int(11) NOT NULL,
   `solution_text` text DEFAULT NULL,
-  `solution_file_url` varchar(500) DEFAULT NULL,
+  `solution_file_url` longtext DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -616,7 +616,7 @@ CREATE TABLE `questions` (
   `homework_id` int(11) NOT NULL,
   `question_type` enum('link','text','pdf','docx','pptx') NOT NULL DEFAULT 'text',
   `question_text` text NOT NULL,
-  `question_data` text DEFAULT NULL,
+  `question_data` longtext DEFAULT NULL,
   `points` int(11) DEFAULT 10,
   `order_number` int(11) DEFAULT 0,
   `is_coding_question` tinyint(1) DEFAULT 0,
@@ -674,7 +674,7 @@ CREATE TABLE `resources` (
   `classroom_id` int(11) NOT NULL,
   `submitted_by` int(11) NOT NULL,
   `resource_title` varchar(200) NOT NULL,
-  `resource_url` varchar(500) NOT NULL,
+  `resource_url` longtext NOT NULL,
   `resource_description` text DEFAULT NULL,
   `is_approved` tinyint(1) DEFAULT 0,
   `approved_by` int(11) DEFAULT NULL,
@@ -705,7 +705,7 @@ CREATE TABLE `submissions` (
   `learner_id` int(11) NOT NULL,
   `code_hash` varchar(255) NOT NULL,
   `code_content` text DEFAULT NULL,
-  `file_url` varchar(500) DEFAULT NULL,
+  `file_url` longtext DEFAULT NULL,
   `submitted_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `is_late` tinyint(1) DEFAULT 0,
   `minutes_late` int(11) DEFAULT 0,

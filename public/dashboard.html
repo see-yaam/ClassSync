@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard - ClassSync</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/style.css?v=1791552283620">
   <style>
     .dashboard-container {
       max-width: 1280px;
@@ -953,8 +953,23 @@
     </div>
   </div>
 
-  <script src="/js/api.js"></script>
+  <!-- Dedicated Quiz Submission Review & Grading Modal (Teacher) -->
+  <div class="modal" id="quiz-grade-review-modal" style="z-index: 99999;">
+    <div class="modal-content" style="max-width: 680px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; margin: 0;">
+          <i class="fa-solid fa-pen-ruler" style="color: var(--primary-color);"></i> Review & Grade Quiz Submission
+        </h3>
+        <button class="modal-close" onclick="closeModal('quiz-grade-review-modal')">&times;</button>
+      </div>
+      <div id="quiz-grade-review-modal-body">
+        <!-- Filled dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/api.js?v=1791559900000"></script>
   <script src="/js/navbar.js"></script>
-  <script src="/js/dashboard.js"></script>
+  <script src="/js/dashboard.js?v=1791559900000"></script>
 </body>
 </html>

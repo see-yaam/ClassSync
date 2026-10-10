@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    const targetTime = new Date(deadlineStr).getTime();
+    const targetTime = window.parseDbDate(deadlineStr).getTime();
 
     const updateTimer = () => {
       const now = new Date().getTime();
@@ -168,8 +168,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             ${q.question_text}
             ${q.question_data ? `
               <div style="margin-top: 0.75rem;">
-                <a href="${q.question_data}" target="_blank" class="btn btn-outline btn-sm">
-                  <i class="fa-solid fa-paperclip"></i> View / Download Question File (${q.question_data.split('.').pop().toUpperCase()})
+                <a href="#" onclick="openAttachment('${q.question_data}', event)" class="btn btn-outline btn-sm">
+                  <i class="fa-solid fa-file-arrow-down"></i> ${window.truncateFilename(window.getAttachmentLabel(q.question_data))}
                 </a>
               </div>
             ` : ''}
@@ -187,11 +187,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                   <span>Submitted on ${formatDate(q.submitted_at)}</span> 
                   ${q.is_late ? `<span class="badge badge-yellow">LATE (-${q.penalty_applied}%)</span>` : '<span class="badge badge-green">ON TIME</span>'}
                 </div>
-                <div class="code-box" id="student-code-${q.submission_id}" style="font-family: monospace;">${escapeHtml(q.code_content || q.file_url || 'No content')}</div>
+                ${q.code_content ? `<div class="code-box" id="student-code-${q.submission_id}" style="font-family: monospace;">${escapeHtml(q.code_content)}</div>` : ''}
                 ${q.file_url ? `
                   <div style="margin-top: 0.5rem;">
-                    <a href="${q.file_url}" target="_blank" class="btn btn-outline btn-sm">
-                      <i class="fa-solid fa-file-arrow-down"></i> View Attached Submission File
+                    <a href="#" onclick="openAttachment('${q.file_url}', event)" class="btn btn-outline btn-sm">
+                      <i class="fa-solid fa-file-arrow-down"></i> ${window.truncateFilename(window.getAttachmentLabel(q.file_url))}
                     </a>
                   </div>
                 ` : ''}
@@ -245,7 +245,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                   <div id="sub-file-status-${q.question_id}" style="margin-top: 0.25rem;">
                     ${q.file_url ? `
                       <div class="file-chip">
-                        <i class="fa-solid fa-file"></i> Attached: <a href="${q.file_url}" target="_blank">${q.file_url.split('/').pop()}</a>
+                        <i class="fa-solid fa-file"></i> Attached: <a href="#" onclick="openAttachment('${q.file_url}', event)">${getAttachmentLabel(q.file_url)}</a>
                         <i class="fa-solid fa-xmark file-chip-remove" title="Remove attachment" onclick="event.stopPropagation(); clearDropzoneAttachment('sub-file-url-${q.question_id}', 'sub-file-status-${q.question_id}')"></i>
                       </div>
                     ` : ''}
@@ -338,7 +338,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         textReader.readAsText(file);
       }
 
-      statusEl.innerHTML = `<span style="color: var(--status-green); font-weight: 600;"><i class="fa-solid fa-circle-check"></i> Uploaded: <a href="${uploaded.url}" target="_blank">${uploaded.original_name}</a></span>`;
+      statusEl.innerHTML = `<span style="color: var(--status-green); font-weight: 600;"><i class="fa-solid fa-circle-check"></i> Uploaded: <a href="#" onclick="openAttachment('${uploaded.url}', event)">${uploaded.original_name}</a></span>`;
       showToast('File uploaded successfully!', 'success');
     } catch (err) {
       statusEl.innerHTML = `<span style="color: var(--status-red);"><i class="fa-solid fa-circle-exclamation"></i> Upload failed: ${err.message}</span>`;
@@ -346,7 +346,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
+  let isSubmittingQuestion = {};
   window.handleQuestionSubmit = async (e, questionId) => {
+    if (isSubmittingQuestion[questionId]) return;
+    isSubmittingQuestion[questionId] = true;
+    const btn = e.target ? e.target.querySelector('button[type="submit"]') : null;
+    let originalHtml = '';
+    if (btn) { originalHtml = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Submitting...'; }
     e.preventDefault();
     const subType = document.getElementById(`sub-type-select-${questionId}`)?.value || 'text';
     const codeContent = document.getElementById(`sub-input-${questionId}`)?.value;
@@ -370,6 +376,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       loadHomeworkDetails();
     } catch (err) {
       showToast(err.message, 'error');
+    }
+    isSubmittingQuestion[questionId] = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
     }
   };
 
@@ -466,7 +477,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (data.code_content && data.code_content.trim()) {
         contentEl.innerHTML = renderCodeWithLineNumbers(data.code_content);
       } else if (data.file_url) {
-        contentEl.innerHTML = `<a href="${data.file_url}" target="_blank" class="btn btn-outline btn-sm"><i class="fa-solid fa-file-arrow-down"></i> Open submitted file</a>`;
+        contentEl.innerHTML = `<a href="#" onclick="openAttachment('${data.file_url}', event)" class="btn btn-outline btn-sm"><i class="fa-solid fa-file-arrow-down"></i> ${window.truncateFilename(window.getAttachmentLabel(data.file_url))}</a>`;
       } else {
         contentEl.textContent = 'No submitted content available.';
       }
@@ -507,7 +518,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       learnerInfoEl.textContent = `Learner: ${data.learner_name || 'Learner'}`;
       codeViewEl.innerHTML = data.code_content
         ? renderCodeWithLineNumbers(data.code_content)
-        : (data.file_url ? `<a href="${data.file_url}" target="_blank" class="btn btn-outline btn-sm"><i class="fa-solid fa-file-arrow-down"></i> Open submitted file</a>` : 'No content provided');
+        : (data.file_url ? `<a href="#" onclick="openAttachment('${data.file_url}', event)" class="btn btn-outline btn-sm"><i class="fa-solid fa-file-arrow-down"></i> ${window.truncateFilename(window.getAttachmentLabel(data.file_url))}</a>` : 'No content provided');
       scoreEl.value = data.score || '';
       feedbackEl.value = data.feedback || '';
       await loadInlineCodeReviews(subId);
@@ -558,6 +569,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (err) {
       showToast(err.message, 'error');
     }
+    isSubmittingQuestion[questionId] = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
   };
 
   // Submit Grade form
@@ -591,6 +607,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       errorBox.textContent = err.message;
       errorBox.classList.remove('hidden');
       showToast(err.message, 'error');
+    }
+    isSubmittingQuestion[questionId] = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
     }
   };
 
@@ -649,7 +670,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         statusEl.innerHTML = `
           <div class="file-chip">
-            <i class="fa-solid fa-file"></i> Attached: <a href="${uploaded.url}" target="_blank">${uploaded.original_name}</a>
+            <i class="fa-solid fa-file"></i> Attached: <a href="#" onclick="openAttachment('${uploaded.url}', event)">${uploaded.original_name}</a>
             <i class="fa-solid fa-xmark file-chip-remove" title="Remove attachment" onclick="event.stopPropagation(); clearDropzoneAttachment('${hiddenUrlId}', '${statusId}')"></i>
           </div>
         `;
@@ -719,7 +740,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (question.question_data) {
       document.getElementById('q-file-url').value = question.question_data;
-      document.getElementById('q-file-status').innerHTML = `<div class="file-chip"><i class="fa-solid fa-file"></i> Current attachment: <a href="${question.question_data}" target="_blank">Open file</a></div>`;
+      document.getElementById('q-file-status').innerHTML = `<div class="file-chip"><i class="fa-solid fa-file"></i> Current attachment: <a href="#" onclick="openAttachment('${question.question_data}', event)">${window.truncateFilename(window.getAttachmentLabel(question.question_data))}</a></div>`;
     }
 
     try {
@@ -727,7 +748,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('q-ans-text').value = answer.data?.answer_text || '';
       if (answer.data?.answer_file_url) {
         document.getElementById('q-ans-file-url').value = answer.data.answer_file_url;
-        document.getElementById('q-ans-file-status').innerHTML = `<div class="file-chip"><i class="fa-solid fa-file"></i> Current answer file: <a href="${answer.data.answer_file_url}" target="_blank">Open file</a></div>`;
+        document.getElementById('q-ans-file-status').innerHTML = `<div class="file-chip"><i class="fa-solid fa-file"></i> Current answer file: <a href="#" onclick="openAttachment('${answer.data.answer_file_url}', event)">${window.truncateFilename(window.getAttachmentLabel(answer.data.answer_file_url))}</a></div>`;
       }
     } catch (err) {
       if (!err.message.includes('No answer key')) showToast(`Could not load answer key: ${err.message}`, 'error');
@@ -774,7 +795,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('answer-key-text').value = answer.data?.answer_text || '';
       if (answer.data?.answer_file_url) {
         document.getElementById('answer-key-file-url').value = answer.data.answer_file_url;
-        document.getElementById('answer-key-file-status').innerHTML = `<div class="file-chip"><i class="fa-solid fa-file"></i> Current answer file: <a href="${answer.data.answer_file_url}" target="_blank">Open file</a></div>`;
+        document.getElementById('answer-key-file-status').innerHTML = `<div class="file-chip"><i class="fa-solid fa-file"></i> Current answer file: <a href="#" onclick="openAttachment('${answer.data.answer_file_url}', event)">${window.truncateFilename(window.getAttachmentLabel(answer.data.answer_file_url))}</a></div>`;
       }
     } catch (err) {
       if (!err.message.includes('No answer key')) showToast(`Could not load answer key: ${err.message}`, 'error');
@@ -827,6 +848,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       await loadHomeworkDetails();
     } catch (err) {
       showToast(err.message, 'error');
+    }
+    isSubmittingQuestion[questionId] = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
     }
   };
 
@@ -952,6 +978,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         question_text: qText,
         question_data: questionDataUrl,
         points: document.getElementById('q-points').value,
+        order_number: editingQuestionId ? undefined : ((homeworkData?.questions?.length || 0) + 1)
       };
 
       if (isCoding) {
@@ -1044,6 +1071,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       errorBox.textContent = err.message;
       errorBox.style.display = 'block';
       showToast(err.message, 'error');
+    }
+    isSubmittingQuestion[questionId] = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
     }
   };
 
@@ -1263,7 +1295,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       `;
       document.getElementById('approval-code-view').innerHTML = sub.code_content
         ? renderCodeWithLineNumbers(sub.code_content)
-        : (sub.file_url ? `<a href="${sub.file_url}" target="_blank" class="btn btn-outline btn-sm">Open file</a>` : 'No content');
+        : (sub.file_url ? `<a href="#" onclick="openAttachment('${sub.file_url}', event)" class="btn btn-outline btn-sm"><i class="fa-solid fa-file-arrow-down"></i> ${window.truncateFilename(window.getAttachmentLabel(sub.file_url))}</a>` : 'No content');
 
       // Auto eval results
       const autoScore = sub.auto_eval_score;
@@ -1302,6 +1334,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     } catch (err) {
       showToast(err.message, 'error');
+    }
+    isSubmittingQuestion[questionId] = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
     }
   };
 
@@ -1424,3 +1461,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   loadHomeworkDetails();
 });
+
+
+

@@ -56,7 +56,7 @@ const pool = {
         trimmed.startsWith('DROP')
       ) {
         localPool.query(sql, params).catch(err => {
-          console.warn('⚠️ Dual-write to local MySQL Workbench failed:', err.message);
+          // console.warn('⚠️ Dual-write to local MySQL Workbench failed:', err.message);
         });
       }
     }
@@ -74,7 +74,7 @@ const pool = {
         trimmed.startsWith('REPLACE')
       ) {
         localPool.execute(sql, params).catch(err => {
-          console.warn('⚠️ Dual-write to local MySQL Workbench failed:', err.message);
+          // console.warn('⚠️ Dual-write to local MySQL Workbench failed:', err.message);
         });
       }
     }

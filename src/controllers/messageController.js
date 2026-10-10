@@ -224,10 +224,18 @@ const getUnreadDmCount = async (req, res) => {
       [classroomId, userId]
     );
 
+    const [[latestMsg]] = await db.query(
+      `SELECT MAX(message_id) AS latest_group_msg_id
+       FROM classroom_messages
+       WHERE classroom_id = ?`,
+      [classroomId]
+    );
+
     res.json({
       success: true,
       data: {
-        unread_count: parseInt(unread_count, 10) || 0
+        unread_count: parseInt(unread_count, 10) || 0,
+        latest_group_msg_id: latestMsg?.latest_group_msg_id || 0
       }
     });
   } catch (error) {

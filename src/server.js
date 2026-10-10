@@ -122,10 +122,10 @@ const autoInitSchema = async () => {
         } else {
           try {
             await db.query(`ALTER TABLE user_todos ADD COLUMN due_time TIME NULL AFTER due_date`);
-          } catch (e) {}
+          } catch (e) { }
           try {
             await db.query(`ALTER TABLE user_todos ADD COLUMN reminder_sent BOOLEAN DEFAULT false AFTER completed`);
-          } catch (e) {}
+          } catch (e) { }
         }
       } catch (tErr) {
         console.warn('user_todos check warning:', tErr.message);
@@ -215,17 +215,20 @@ const autoInitSchema = async () => {
           console.log('✅ Created "quizzes", "quiz_questions", "quiz_options", "quiz_attempts", "quiz_answers", "quiz_test_cases" tables automatically.');
         } else {
           try {
-            await db.query(`ALTER TABLE quiz_questions MODIFY COLUMN question_type ENUM('mcq','true_false','short_answer','coding') NOT NULL DEFAULT 'mcq'`);
-          } catch(e){}
+            await db.query(`ALTER TABLE quiz_questions MODIFY COLUMN question_type VARCHAR(50) NOT NULL DEFAULT 'mcq'`);
+          } catch (e) { }
           try {
             await db.query(`ALTER TABLE quiz_questions ADD COLUMN coding_language VARCHAR(50) DEFAULT 'python' AFTER question_type`);
-          } catch(e){}
+          } catch (e) { }
           try {
             await db.query(`ALTER TABLE quiz_questions ADD COLUMN starter_code TEXT NULL AFTER coding_language`);
-          } catch(e){}
+          } catch (e) { }
+          try {
+            await db.query(`ALTER TABLE quiz_questions ADD COLUMN question_file_url TEXT NULL AFTER starter_code`);
+          } catch (e) { }
           try {
             await db.query(`ALTER TABLE quiz_attempts ADD COLUMN approval_status ENUM('approved','pending') DEFAULT 'approved' AFTER status`);
-          } catch(e){}
+          } catch (e) { }
           try {
             await db.query(`
               CREATE TABLE IF NOT EXISTS \`quiz_test_cases\` (
@@ -237,13 +240,13 @@ const autoInitSchema = async () => {
                 FOREIGN KEY (\`question_id\`) REFERENCES \`quiz_questions\` (\`question_id\`) ON DELETE CASCADE
               )
             `);
-          } catch(e){}
+          } catch (e) { }
           try {
             await db.query(`ALTER TABLE quiz_answers ADD COLUMN coding_language VARCHAR(50) NULL AFTER answer_text`);
-          } catch(e){}
+          } catch (e) { }
           try {
             await db.query(`ALTER TABLE quiz_test_cases ADD COLUMN is_hidden BOOLEAN DEFAULT false AFTER expected_output`);
-          } catch(e){}
+          } catch (e) { }
         }
       } catch (qErr) {
         console.warn('Quiz tables check warning:', qErr.message);

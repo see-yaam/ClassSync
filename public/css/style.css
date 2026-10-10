@@ -2232,4 +2232,15 @@ html:not([data-theme="dark"]) .nav-avatar-btn:hover .nav-avatar-img {
 .instructor-only,
 .learner-only {
   display: none;
+}
+
+.btn-outline.active {
+  background: var(--primary-light);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  font-weight: 700;
+}
+[data-theme="dark"] .btn-outline.active {
+  background: rgba(96, 165, 250, 0.15);
+  box-shadow: 0 0 10px rgba(96, 165, 250, 0.2);
 }

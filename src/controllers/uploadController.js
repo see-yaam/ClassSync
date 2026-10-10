@@ -40,10 +40,14 @@ const uploadFile = async (req, res) => {
     } catch (fsErr) {
       console.warn('⚠️ Serverless read-only filesystem detected. Falling back to Data URI:', fsErr.message);
       if (filedata.startsWith('data:')) {
-        finalUrl = filedata;
+        if (!filedata.includes(';name=')) {
+          finalUrl = filedata.replace(';base64', `;name=${encodeURIComponent(sanitizedFilename)};base64`);
+        } else {
+          finalUrl = filedata;
+        }
       } else {
         const mimeType = filename.endsWith('.png') ? 'image/png' : filename.endsWith('.gif') ? 'image/gif' : 'image/jpeg';
-        finalUrl = `data:${mimeType};base64,${base64Content}`;
+        finalUrl = `data:${mimeType};name=${encodeURIComponent(sanitizedFilename)};base64,${base64Content}`;
       }
     }
 

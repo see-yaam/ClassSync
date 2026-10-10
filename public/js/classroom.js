@@ -1,3 +1,196 @@
+window.addEventListener('error', function (e) {
+  console.error("Global error caught:", e.message, e.filename, e.lineno);
+  if (typeof showToast === 'function') {
+    showToast('System Error: ' + e.message, 'error');
+  } else {
+    alert('System Error: ' + e.message);
+  }
+});
+window.openQuizGradingModal = async (attemptId, quizId) => {
+  try {
+    console.log('openQuizGradingModal clicked for attemptId:', attemptId, 'quizId:', quizId);
+
+    let data = window.activeLeaderboardData;
+    if (!data || !data.leaderboard || !data.quiz || data.quiz.quiz_id != quizId) {
+      try {
+        data = await apiFetch(`/quizzes/${quizId}/leaderboard`);
+        if (data && data.success) {
+          window.activeLeaderboardData = data;
+        } else {
+          throw new Error('Failed to load leaderboard data from server.');
+        }
+      } catch (e) {
+        console.error('Error fetching submission details:', e);
+        if (typeof showToast === 'function') showToast('Error fetching submission details: ' + e.message, 'error');
+        return;
+      }
+    }
+
+    if (!data || !data.leaderboard) {
+      if (typeof showToast === 'function') showToast('Failed to load submission details (no data).', 'error');
+      return;
+    }
+
+    const item = data.leaderboard.find(a => a.attempt_id == attemptId);
+    const quiz = data.quiz;
+    if (!item || !quiz) {
+      if (typeof showToast === 'function') showToast('Submission data not found for this attempt.', 'error');
+      return;
+    }
+
+    // Close the leaderboard modal so the grade review modal opens cleanly
+    closeModal('quiz-results-modal');
+
+    let answersHtml = '';
+    if (item.answers && item.answers.length > 0) {
+      answersHtml = item.answers.map((ans, qIdx) => {
+        let parsedAns = { text: '', file: null };
+        const rawAnsStr = ans.answer_text != null ? String(ans.answer_text).trim() : '';
+        try {
+          if (rawAnsStr.startsWith('{')) {
+            parsedAns = JSON.parse(rawAnsStr);
+          } else if (rawAnsStr.startsWith('/uploads/') || rawAnsStr.startsWith('http')) {
+            parsedAns.file = rawAnsStr;
+          } else {
+            parsedAns.text = rawAnsStr;
+          }
+        } catch (e) {
+          parsedAns.text = rawAnsStr;
+        }
+
+        let qFileChip = '';
+        if (ans.question_file_url) {
+          const origQFile = String(ans.question_file_url).split('/').pop().replace(/^\d+-/, '');
+          const truncateFn = window.truncateFilename || (s => s);
+          const safeUrl = String(ans.question_file_url).replace(/'/g, "\\'");
+          const safeName = String(origQFile).replace(/'/g, "\\'");
+          qFileChip = `
+            <div style="margin-top: 0.35rem;">
+              <span class="attachment-pill" onclick="openAttachment('${safeUrl}', '${escapeHtml(safeName)}')" style="cursor: pointer; display: inline-flex; align-items: center; gap: 0.45rem; background: var(--table-head-bg); padding: 0.35rem 0.65rem; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.8rem; font-weight: 600;">
+                <i class="fa-solid fa-file-arrow-down" style="color: var(--primary-color);"></i> Question File: ${escapeHtml(truncateFn(origQFile, 25))}
+              </span>
+            </div>
+          `;
+        }
+
+        let fileChip = '';
+        if (parsedAns.file) {
+          const origName = String(parsedAns.file).split('/').pop().replace(/^\d+-/, '');
+          const truncateFn = window.truncateFilename || (s => s);
+          const safeUrl = String(parsedAns.file).replace(/'/g, "\\'");
+          const safeName = String(origName).replace(/'/g, "\\'");
+          fileChip = `
+            <div style="margin-top: 0.5rem;">
+              <span class="attachment-pill" onclick="openAttachment('${safeUrl}', '${escapeHtml(safeName)}')" style="cursor: pointer; display: inline-flex; align-items: center; gap: 0.45rem; background: var(--table-head-bg); padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid var(--border-color); font-size: 0.85rem; font-weight: 600;">
+                <i class="fa-solid fa-file-arrow-down" style="color: var(--primary-color);"></i> Student Uploaded File: ${escapeHtml(truncateFn(origName, 25))}
+              </span>
+            </div>
+          `;
+        }
+
+        let studentResponseHtml = '';
+        if (parsedAns.text) {
+          studentResponseHtml = `
+            <div class="code-box" style="white-space: pre-wrap; font-family: monospace; font-size: 0.85rem; margin-top: 0.35rem; max-height: 250px; overflow-y: auto; background: #020617; color: #f8fafc; padding: 0.85rem; border-radius: 10px; border: 1px solid var(--border-color);">
+              ${escapeHtml(parsedAns.text)}
+            </div>
+          `;
+        } else if (!parsedAns.file) {
+          studentResponseHtml = `<p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem;">(No text response written)</p>`;
+        }
+
+        return `
+          <div style="background: var(--bg-body); padding: 1rem; border-radius: 0.75rem; margin-bottom: 1rem; border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.4rem;">
+              <strong style="font-size: 0.9rem; color: var(--primary-color);">Q${qIdx + 1}: ${escapeHtml(ans.question_text || 'Question')}</strong>
+              <span class="badge badge-gray" style="font-weight: 700; flex-shrink: 0;">${ans.points || 0} Pts</span>
+            </div>
+            ${qFileChip}
+            <div style="margin-top: 0.6rem; font-size: 0.85rem; color: var(--text-main);">
+              <strong>Student's Solution Response:</strong>
+              ${studentResponseHtml}
+              ${fileChip}
+            </div>
+          </div>
+        `;
+      }).join('');
+    } else {
+      answersHtml = `<p style="color: var(--text-muted); font-size: 0.85rem;">No written or file responses recorded for this attempt.</p>`;
+    }
+
+    const bodyEl = document.getElementById('quiz-grade-review-modal-body');
+    if (bodyEl) {
+      bodyEl.innerHTML = `
+        <div style="margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+          <div>
+            <h4 style="font-size: 1.05rem; font-weight: 700; margin: 0; color: var(--text-main);">${escapeHtml(item.full_name || 'Student')}</h4>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">${item.email || ''}</span>
+          </div>
+          <span class="badge ${item.approval_status === 'pending' ? 'badge-yellow' : 'badge-green'}">
+            ${item.approval_status === 'pending' ? '⏳ Pending Teacher Approval' : '✅ Approved'}
+          </span>
+        </div>
+
+        <div style="margin-bottom: 1.25rem; max-height: 50vh; overflow-y: auto; padding-right: 0.25rem;">
+          ${answersHtml}
+        </div>
+
+        <div style="background: var(--card-bg); padding: 1rem; border-radius: 0.75rem; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
+          <div>
+            <label style="font-size: 0.85rem; font-weight: 700; display: block; margin-bottom: 0.2rem; color: var(--text-main);">Grade Score (Max ${quiz.total_marks} Pts):</label>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Assign score & save to release grade.</span>
+          </div>
+          <div style="display: flex; gap: 0.75rem; align-items: center;">
+            <input type="number" id="modal-grade-score-input" class="form-control" value="${typeof item.total_score === 'number' ? item.total_score : 0}" min="0" max="${quiz.total_marks}" style="width: 100px; font-weight: 700; text-align: center;">
+            <button class="btn btn-primary" onclick="submitModalQuizGrade(${item.attempt_id}, ${quiz.quiz_id})">
+              <i class="fa-solid fa-check-double"></i> Save Grade & Approve
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    const closeBtn = document.querySelector('#quiz-grade-review-modal .modal-close');
+    if (closeBtn) {
+      closeBtn.onclick = () => window.closeQuizGradingModal(quiz.quiz_id);
+    }
+
+    openModal('quiz-grade-review-modal');
+  } catch (err) {
+    console.error('Error in openQuizGradingModal:', err);
+    if (typeof showToast === 'function') showToast('Error opening grading popup: ' + err.message, 'error');
+  }
+};
+
+window.closeQuizGradingModal = (quizId) => {
+  closeModal('quiz-grade-review-modal');
+  if (quizId) {
+    openQuizLeaderboard(quizId);
+  }
+};
+
+window.submitModalQuizGrade = async (attemptId, quizId) => {
+  try {
+    const inputEl = document.getElementById('modal-grade-score-input');
+    const score = inputEl ? inputEl.value : 0;
+
+    const res = await apiFetch(`/quizzes/attempt/${attemptId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ score })
+    });
+    if (res && res.success) {
+      showToast(`✅ Quiz grade saved (${res.total_score} Pts) and released to student!`, 'success');
+      closeModal('quiz-grade-review-modal');
+      await openQuizLeaderboard(quizId);
+      if (typeof loadQuizzesTab === 'function') await loadQuizzesTab();
+    } else {
+      showToast(res.message || 'Failed to approve grade.', 'error');
+    }
+  } catch (err) {
+    showToast(err.message || 'Approval error.', 'error');
+  }
+};
+
 let classroomData = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -38,7 +231,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         localStorage.setItem(`activeTab_${classroomId}`, cleanTab);
         window.history.replaceState(null, '', `classroom.html?id=${classroomId}#${cleanTab}`);
-      } catch (e) {}
+      } catch (e) { }
 
       if (tabName === 'tab-homework') loadHomeworkTab();
       if (tabName === 'tab-quizzes') loadQuizzesTab();
@@ -133,7 +326,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const cleanDeadline = typeof deadlineStr === 'string' ? deadlineStr.replace(' ', 'T') : deadlineStr;
-    const targetTime = new Date(cleanDeadline).getTime();
+    const targetTime = window.parseDbDate(cleanDeadline).getTime();
     if (isNaN(targetTime)) {
       return `<span class="badge badge-gray"><i class="fa-solid fa-infinity"></i> No Deadline</span>`;
     }
@@ -205,7 +398,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       listEl.innerHTML = homeworks.map(hw => {
         const isCompleted = !isInstructor && hw.question_count > 0 && hw.submitted_count === hw.question_count;
         const cardStyle = isCompleted ? 'box-shadow: 0 0 10px rgba(16, 185, 129, 0.3); border: 1px solid var(--status-green);' : '';
-        
+
         return `
         <div class="card" style="${cardStyle}">
           <div class="card-info">
@@ -298,9 +491,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           const showPlagiarism = activeView === 'plagiarism';
           containerEl.style.display = activeView === 'matrix' ? 'block' : 'none';
           document.getElementById('plagiarism-container').style.display = showPlagiarism ? 'block' : 'none';
-          
+
           if (showPlagiarism) {
-             loadPlagiarismTab();
+            loadPlagiarismTab();
           }
         };
       });
@@ -343,15 +536,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <span style="color: var(--text-muted); opacity: 0.7; margin-right: 0.25rem;">#${q.order_number || q.question_id}</span> ${escapeHtml(q.question_text)}
                       </td>
                       ${learners.map(l => {
-                        const qData = q.learnerStatuses[l.user_id];
-                        let icon = '<div style="width: 14px; height: 14px; background-color: var(--text-muted); border-radius: 4px; display: inline-block; opacity: 0.15;"></div>';
-                        if (qData.status === 'green') {
-                          icon = '<i class="fa-solid fa-check" style="color: var(--status-green); font-size: 1rem;"></i>';
-                        } else if (qData.status === 'orange') {
-                          icon = '<i class="fa-solid fa-triangle-exclamation" style="color: var(--status-orange); font-size: 1rem;"></i>';
-                        }
-                        
-                        return `
+          const qData = q.learnerStatuses[l.user_id];
+          let icon = '<div style="width: 14px; height: 14px; background-color: var(--text-muted); border-radius: 4px; display: inline-block; opacity: 0.15;"></div>';
+          if (qData.status === 'green') {
+            icon = '<i class="fa-solid fa-check" style="color: var(--status-green); font-size: 1rem;"></i>';
+          } else if (qData.status === 'orange') {
+            icon = '<i class="fa-solid fa-triangle-exclamation" style="color: var(--status-orange); font-size: 1rem;"></i>';
+          }
+
+          return `
                           <td style="text-align: center; padding: 0.4rem 0.25rem; vertical-align: middle; cursor: ${qData.submission_id ? 'pointer' : 'default'};" 
                               title="${escapeHtml(l.full_name)}: ${qData.label}${qData.score !== null ? ` (${qData.score}pts)` : ''}" 
                               ${qData.submission_id ? `onclick="openClassroomSubmissionView(${qData.submission_id})"` : ''}>
@@ -362,7 +555,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             </div>
                           </td>
                         `;
-                      }).join('')}
+        }).join('')}
                     </tr>
                   `).join('')}
                 `).join('')}
@@ -391,7 +584,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const hwId = selectEl.value;
         const plagiarismSelect = document.getElementById('plagiarism-hw-select');
         if (plagiarismSelect && hwId) plagiarismSelect.value = hwId;
-        
+
         if (document.querySelector('.matrix-view-tab.active')?.dataset.matrixView === 'roster') {
           // Homework select is hidden for roster now, handled by tree view
         }
@@ -415,7 +608,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (classroomData && ['instructor', 'ta'].includes((classroomData.user_role || '').toLowerCase())) {
       return window.openClassroomGradeModal(submissionId);
     }
-    
+
     const titleEl = document.getElementById('classroom-submission-title');
     const typeEl = document.getElementById('classroom-submission-type');
     const contentEl = document.getElementById('classroom-submission-content');
@@ -431,7 +624,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       contentEl.innerHTML = submission.code_content
         ? `<pre style="white-space: pre-wrap; margin: 0;">${escapeHtml(submission.code_content)}</pre>`
         : submission.file_url
-          ? `<a href="${escapeHtml(submission.file_url)}" target="_blank" class="btn btn-outline btn-sm"><i class="fa-solid fa-file-arrow-down"></i> Open submitted file</a>`
+          ? `<a href="#" onclick="openAttachment('${escapeHtml(submission.file_url)}', event)" class="btn btn-outline btn-sm"><i class="fa-solid fa-file-arrow-down"></i> ${window.truncateFilename(window.getAttachmentLabel(submission.file_url))}</a>`
           : 'No submitted content available.';
     } catch (err) {
       contentEl.textContent = err.message;
@@ -459,15 +652,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       contentEl.innerHTML = submission.code_content
         ? `<pre style="white-space: pre-wrap; margin: 0; font-family: monospace; font-size: 0.9rem;">${escapeHtml(submission.code_content).split('\n').map((line, idx) => `<span style="color: var(--text-muted); padding-right: 1rem; border-right: 1px solid var(--border-color); margin-right: 1rem; display: inline-block; width: 30px; text-align: right;">${idx + 1}</span>${line}`).join('\n')}</pre>`
         : submission.file_url
-          ? `<a href="${escapeHtml(submission.file_url)}" target="_blank" class="btn btn-outline btn-sm"><i class="fa-solid fa-file-arrow-down"></i> Open submitted file</a>`
+          ? `<a href="#" onclick="openAttachment('${escapeHtml(submission.file_url)}', event)" class="btn btn-outline btn-sm"><i class="fa-solid fa-file-arrow-down"></i> ${window.truncateFilename(window.getAttachmentLabel(submission.file_url))}</a>`
           : 'No content provided';
-          
+
       if (submission.max_score) document.getElementById('classroom-grade-max').textContent = submission.max_score;
       if (submission.status) document.getElementById('classroom-grade-status').value = submission.status;
-      
+
       document.getElementById('classroom-grade-score').value = submission.score ?? '';
       document.getElementById('classroom-grade-feedback').value = submission.feedback || '';
-      
+
       // Show add review button only for text/code submissions
       document.getElementById('btn-add-inline-review').style.display = submission.code_content ? 'block' : 'none';
       await loadClassroomInlineReviews(submissionId);
@@ -510,38 +703,38 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   document.getElementById('btn-add-inline-review').onclick = () => {
-     document.getElementById('inline-review-form-container').style.display = 'block';
+    document.getElementById('inline-review-form-container').style.display = 'block';
   };
   document.getElementById('cancel-inline-review-btn').onclick = () => {
-     document.getElementById('inline-review-form-container').style.display = 'none';
+    document.getElementById('inline-review-form-container').style.display = 'none';
   };
   document.getElementById('save-inline-review-btn').onclick = async () => {
-     const from = document.getElementById('review-line-from').value;
-     const to = document.getElementById('review-line-to').value;
-     const type = document.querySelector('input[name="review-type"]:checked').value;
-     const comment = document.getElementById('review-comment-text').value;
-     if (!from || !to || !comment) return showToast('Please fill all review fields', 'error');
-     
-     try {
-       await apiFetch(`/submissions/${activeClassroomSubmissionId}/code-reviews`, {
-         method: 'POST',
-         body: JSON.stringify({
-           line_start: from,
-           line_end: to,
-           comment: `[${type.toUpperCase()}] ${comment}`
-         })
-       });
-       showToast(`Inline ${type} saved for lines ${from}-${to}!`, 'success');
-       
-       document.getElementById('review-line-from').value = '';
-       document.getElementById('review-line-to').value = '';
-       document.getElementById('review-comment-text').value = '';
-       // We DO NOT hide the form here, so the instructor can add another comment immediately
-       
-       await loadClassroomInlineReviews(activeClassroomSubmissionId);
-     } catch (err) {
-       showToast(err.message, 'error');
-     }
+    const from = document.getElementById('review-line-from').value;
+    const to = document.getElementById('review-line-to').value;
+    const type = document.querySelector('input[name="review-type"]:checked').value;
+    const comment = document.getElementById('review-comment-text').value;
+    if (!from || !to || !comment) return showToast('Please fill all review fields', 'error');
+
+    try {
+      await apiFetch(`/submissions/${activeClassroomSubmissionId}/code-reviews`, {
+        method: 'POST',
+        body: JSON.stringify({
+          line_start: from,
+          line_end: to,
+          comment: `[${type.toUpperCase()}] ${comment}`
+        })
+      });
+      showToast(`Inline ${type} saved for lines ${from}-${to}!`, 'success');
+
+      document.getElementById('review-line-from').value = '';
+      document.getElementById('review-line-to').value = '';
+      document.getElementById('review-comment-text').value = '';
+      // We DO NOT hide the form here, so the instructor can add another comment immediately
+
+      await loadClassroomInlineReviews(activeClassroomSubmissionId);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
   };
 
   document.getElementById('classroom-grade-form').onsubmit = async event => {
@@ -549,7 +742,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const errorEl = document.getElementById('classroom-grade-error');
     const score = document.getElementById('classroom-grade-score').value;
     const status = document.getElementById('classroom-grade-status').value;
-    
+
     if (!score || !activeClassroomSubmissionId) {
       errorEl.textContent = 'Grade score is required.';
       errorEl.style.display = 'block';
@@ -577,13 +770,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Compare Code Modal Logic
   const compareModal = document.getElementById('classroom-compare-modal');
-  
+
   window.openCompareModal = async (subId1, name1, subId2, name2) => {
     document.getElementById('compare-learner-1-name').textContent = name1;
     document.getElementById('compare-learner-2-name').textContent = name2;
     document.getElementById('compare-learner-1-code').innerHTML = 'Loading code...';
     document.getElementById('compare-learner-2-code').innerHTML = 'Loading code...';
-    
+
     document.getElementById('btn-grade-learner-1').onclick = () => window.openClassroomGradeModal(subId1);
     document.getElementById('btn-grade-learner-2').onclick = () => window.openClassroomGradeModal(subId2);
 
@@ -594,7 +787,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         apiFetch(`/submissions/${subId1}`),
         apiFetch(`/submissions/${subId2}`)
       ]);
-      
+
       const code1 = res1.data?.code_content || '// No code found';
       const code2 = res2.data?.code_content || '// No code found';
 
@@ -755,10 +948,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const canEditDelete = isStaff || Number(r.submitter_id) === currentUserId;
         const canApprove = !r.is_approved && isStaff;
-        
+
         let actionArea = '';
         if (canApprove || canEditDelete) {
-            actionArea = `
+          actionArea = `
               <div style="display: flex; gap: 0.5rem; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
                 ${canApprove ? `
                   <button class="btn btn-primary btn-sm" style="flex: 1;" onclick="approveRes(${r.resource_id})">
@@ -782,7 +975,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="card-info">
               <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
                 <h4 class="card-title">
-                  <a href="${r.resource_url}" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 0.4rem;">
+                  <a href="#" onclick="openAttachment('${r.resource_url}', event)" style="display: inline-flex; align-items: center; gap: 0.4rem;">
                     ${r.resource_title} <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 0.75rem;"></i>
                   </a>
                 </h4>
@@ -1065,18 +1258,18 @@ document.addEventListener('DOMContentLoaded', async () => {
           </thead>
           <tbody>
             ${visibleFlags.map(f => {
-              const score = Number(f.similarity_score || 0);
-              const isHighRisk = score > 75;
-              const isMediumRisk = score >= 25 && score <= 75;
-              const riskLabel = isHighRisk ? 'High Risk' : isMediumRisk ? 'Risk' : 'Low Risk';
-              const riskBadgeClass = isHighRisk ? 'badge-red' : isMediumRisk ? 'badge-orange' : 'badge-green';
-              const riskBadgeIcon = isHighRisk
-                ? 'fa-solid fa-triangle-exclamation'
-                : isMediumRisk
-                  ? 'fa-solid fa-triangle-exclamation'
-                  : 'fa-solid fa-check';
+        const score = Number(f.similarity_score || 0);
+        const isHighRisk = score > 75;
+        const isMediumRisk = score >= 25 && score <= 75;
+        const riskLabel = isHighRisk ? 'High Risk' : isMediumRisk ? 'Risk' : 'Low Risk';
+        const riskBadgeClass = isHighRisk ? 'badge-red' : isMediumRisk ? 'badge-orange' : 'badge-green';
+        const riskBadgeIcon = isHighRisk
+          ? 'fa-solid fa-triangle-exclamation'
+          : isMediumRisk
+            ? 'fa-solid fa-triangle-exclamation'
+            : 'fa-solid fa-check';
 
-              return `
+        return `
                 <tr>
                   <td>
                     <div style="font-weight: 700;">${escapeHtml(f.homework_title)}</div>
@@ -1100,8 +1293,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                   </td>
                   <td>
                     ${f.is_reviewed
-              ? '<span class="badge badge-green"><i class="fa-solid fa-check"></i> Reviewed</span>'
-              : '<span class="badge badge-yellow"><i class="fa-solid fa-clock"></i> Unreviewed</span>'}
+            ? '<span class="badge badge-green"><i class="fa-solid fa-check"></i> Reviewed</span>'
+            : '<span class="badge badge-yellow"><i class="fa-solid fa-clock"></i> Unreviewed</span>'}
                   </td>
                   <td>
                     <button class="btn btn-sm btn-primary" onclick="window.openCompareModal(${f.submission_id_1}, '${escapeHtml(f.learner_1_name)}', ${f.submission_id_2}, '${escapeHtml(f.learner_2_name)}')">
@@ -1110,7 +1303,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                   </td>
                 </tr>
               `;
-            }).join('')}
+      }).join('')}
           </tbody>
         </table>
       `;
@@ -1158,7 +1351,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
+  let isSubmittingAlert = {};
   window.submitInlineAlert = async (userId, alertType) => {
+    if (isSubmittingAlert[userId]) return;
+    isSubmittingAlert[userId] = true;
     const inputEl = document.getElementById(`alert-reason-input-${userId}`);
     const reasonText = inputEl ? inputEl.value.trim() : '';
     const finalMsg = reasonText || (alertType === 'red' ? 'Red Warning Alert' : 'Yellow Warning Alert');
@@ -1178,6 +1374,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       await loadStudentInfoTab();
     } catch (err) {
       showToast(err.message, 'error');
+    } finally {
+      isSubmittingAlert[userId] = false;
     }
   };
 
@@ -1268,25 +1466,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         </thead>
         <tbody>
           ${filtered.map(s => {
-            let attBadge = '';
-            if (s.attendance_percentage === null) {
-              attBadge = `<span class="badge badge-gray"><i class="fa-solid fa-minus-circle"></i> N/A (No Sessions)</span>`;
-            } else if (s.attendance_percentage >= 80) {
-              attBadge = `<span class="badge badge-green"><i class="fa-solid fa-circle-check"></i> ${s.attendance_percentage}% (${s.present_sessions}/${s.total_sessions})</span>`;
-            } else if (s.attendance_percentage >= 50) {
-              attBadge = `<span class="badge badge-yellow"><i class="fa-solid fa-triangle-exclamation"></i> ${s.attendance_percentage}% (${s.present_sessions}/${s.total_sessions})</span>`;
-            } else {
-              attBadge = `<span class="badge badge-red"><i class="fa-solid fa-circle-exclamation"></i> ${s.attendance_percentage}% (${s.present_sessions}/${s.total_sessions})</span>`;
-            }
+      let attBadge = '';
+      if (s.attendance_percentage === null) {
+        attBadge = `<span class="badge badge-gray"><i class="fa-solid fa-minus-circle"></i> N/A (No Sessions)</span>`;
+      } else if (s.attendance_percentage >= 80) {
+        attBadge = `<span class="badge badge-green"><i class="fa-solid fa-circle-check"></i> ${s.attendance_percentage}% (${s.present_sessions}/${s.total_sessions})</span>`;
+      } else if (s.attendance_percentage >= 50) {
+        attBadge = `<span class="badge badge-yellow"><i class="fa-solid fa-triangle-exclamation"></i> ${s.attendance_percentage}% (${s.present_sessions}/${s.total_sessions})</span>`;
+      } else {
+        attBadge = `<span class="badge badge-red"><i class="fa-solid fa-circle-exclamation"></i> ${s.attendance_percentage}% (${s.present_sessions}/${s.total_sessions})</span>`;
+      }
 
-            const isEditing = editingAlertUserIdMap[s.user_id] === true;
-            const activeAlert = s.active_alert;
-            const hasAlert = activeAlert && (activeAlert.alert_type === 'red' || activeAlert.alert_type === 'yellow');
+      const isEditing = editingAlertUserIdMap[s.user_id] === true;
+      const activeAlert = s.active_alert;
+      const hasAlert = activeAlert && (activeAlert.alert_type === 'red' || activeAlert.alert_type === 'yellow');
 
-            let alertCellHtml = '';
-            if (isEditing) {
-              // State 2 (SS 2): Inline Edit Box with Reason Input, Yellow dot, Red dot, and Close button
-              alertCellHtml = `
+      let alertCellHtml = '';
+      if (isEditing) {
+        // State 2 (SS 2): Inline Edit Box with Reason Input, Yellow dot, Red dot, and Close button
+        alertCellHtml = `
                 <div class="inline-alert-box">
                   <input type="text" id="alert-reason-input-${s.user_id}" class="inline-alert-input" placeholder="Reason (optional)" onkeypress="if(event.key==='Enter') submitInlineAlert(${s.user_id}, 'yellow')">
                   <button type="button" class="btn-inline-dot btn-inline-yellow" title="Set Yellow Warning Alert" onclick="submitInlineAlert(${s.user_id}, 'yellow')">
@@ -1300,10 +1498,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                   </button>
                 </div>
               `;
-            } else if (hasAlert) {
-              // State 3 (SS 3): Alert Active (Red/Yellow Circle Pill + Set + Clear)
-              const isRed = activeAlert.alert_type === 'red';
-              alertCellHtml = `
+      } else if (hasAlert) {
+        // State 3 (SS 3): Alert Active (Red/Yellow Circle Pill + Set + Clear)
+        const isRed = activeAlert.alert_type === 'red';
+        alertCellHtml = `
                 <div class="inline-alert-cell">
                   <div class="alert-badge-circle ${isRed ? 'alert-badge-red-circle' : 'alert-badge-yellow-circle'}" title="${escapeHtml(activeAlert.alert_message || '')}">
                     <span class="dot-icon ${isRed ? 'red-dot' : 'yellow-dot'}"></span>
@@ -1317,9 +1515,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                   </button>
                 </div>
               `;
-            } else {
-              // State 1 (SS 1): No Alert Active (Clear text + Set button)
-              alertCellHtml = `
+      } else {
+        // State 1 (SS 1): No Alert Active (Clear text + Set button)
+        alertCellHtml = `
                 <div class="inline-alert-cell">
                   <span class="alert-status-text alert-status-clear">Clear</span>
                   <button type="button" class="btn-alert-set" onclick="toggleInlineAlertEdit(${s.user_id}, true)">
@@ -1327,9 +1525,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                   </button>
                 </div>
               `;
-            }
+      }
 
-            return `
+      return `
               <tr>
                 <td>
                   <div style="font-weight: 700; color: var(--text-main);">${escapeHtml(s.full_name)}</div>
@@ -1341,7 +1539,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td style="vertical-align: middle;">${alertCellHtml}</td>
               </tr>
             `;
-          }).join('')}
+    }).join('')}
         </tbody>
       </table>
     `;
@@ -1441,7 +1639,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       messagesBox.innerHTML = messages.map(m => {
         const isSelf = m.sender_id == currentUserId;
-        const timeStr = new Date(m.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const timeStr = window.parseDbDate(m.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
         let roleBadge = '';
         if (m.sender_role) {
@@ -1516,11 +1714,32 @@ document.addEventListener('DOMContentLoaded', async () => {
   const updateUnreadDmBadge = async () => {
     try {
       const res = await apiFetch(`/classrooms/${classroomId}/dm/unread-count`);
-      const unreadCount = res.data?.unread_count || 0;
+      const dmCount = res.data?.unread_count || 0;
+      const latestGroupMsgId = res.data?.latest_group_msg_id || 0;
+
+      let hasUnreadGroupMsg = false;
+      const lastReadGroupMsgId = parseInt(localStorage.getItem(`classsync_group_read_${classroomId}`) || '0', 10);
+
+      // If we are currently looking at the group chat, update the read receipt
+      if (activeChatChannel && activeChatChannel.type === 'group') {
+        if (latestGroupMsgId > lastReadGroupMsgId) {
+          localStorage.setItem(`classsync_group_read_${classroomId}`, latestGroupMsgId);
+        }
+      } else if (latestGroupMsgId > lastReadGroupMsgId) {
+        hasUnreadGroupMsg = true;
+      }
+
+      const totalUnread = dmCount + (hasUnreadGroupMsg ? 1 : 0);
+
+      const groupBadge = document.getElementById('unread-group-badge');
+      if (groupBadge) {
+        groupBadge.style.display = hasUnreadGroupMsg ? 'inline-flex' : 'none';
+      }
+
       const badge = document.getElementById('unread-dm-badge');
       if (badge) {
-        if (unreadCount > 0) {
-          badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+        if (totalUnread > 0) {
+          badge.textContent = totalUnread > 99 ? '99+' : (hasUnreadGroupMsg && dmCount === 0 ? '!' : totalUnread);
           badge.style.display = 'inline-flex';
         } else {
           badge.style.display = 'none';
@@ -1648,22 +1867,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   const setupGradingsFilters = () => {
     const btns = document.querySelectorAll('.grading-filter-btn');
     if (btns.length === 0) return;
-    
+
     // Initial color setup based on active class
     btns.forEach(btn => {
       if (btn.classList.contains('active')) {
-         btn.style.background = 'var(--primary-color)';
-         btn.style.color = 'white';
+        btn.style.background = 'var(--primary-color)';
+        btn.style.color = 'white';
       } else {
-         btn.style.background = 'transparent';
-         btn.style.color = 'var(--text-muted)';
+        btn.style.background = 'transparent';
+        btn.style.color = 'var(--text-muted)';
       }
-      
+
       btn.onclick = () => {
         btns.forEach(b => {
-           b.classList.remove('active');
-           b.style.background = 'transparent';
-           b.style.color = 'var(--text-muted)';
+          b.classList.remove('active');
+          b.style.background = 'transparent';
+          b.style.color = 'var(--text-muted)';
         });
         btn.classList.add('active');
         btn.style.background = 'var(--primary-color)';
@@ -1699,7 +1918,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       // Filter by homework if selected
       if (hwSelect && hwSelect.value !== 'all') {
-         submissions = submissions.filter(s => String(s.homework_id) === String(hwSelect.value));
+        submissions = submissions.filter(s => String(s.homework_id) === String(hwSelect.value));
       }
 
       if (submissions.length === 0) {
@@ -1717,10 +1936,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         const isGraded = s.is_graded;
         let scoreBadge = `<span style="background: var(--bg-body); color: var(--text-muted); border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.8rem; border: 1px solid var(--border-color);"><i class="fa-regular fa-clock"></i> Pending</span>`;
         if (isGraded) {
-           const st = s.status || 'Accepted';
-           if (st === 'Accepted') scoreBadge = `<span style="background: rgba(34, 197, 94, 0.1); color: var(--status-green, #22c55e); border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.8rem; font-weight: bold;">${st} ${s.score}/${s.max_score}</span>`;
-           else if (st === 'Wrong') scoreBadge = `<span style="background: rgba(239, 68, 68, 0.1); color: var(--status-red, #ef4444); border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.8rem; font-weight: bold;">${st} ${s.score}/${s.max_score}</span>`;
-           else scoreBadge = `<span style="background: rgba(245, 158, 11, 0.1); color: var(--status-orange, #f59e0b); border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.8rem; font-weight: bold;">${st} ${s.score}/${s.max_score}</span>`;
+          const st = s.status || 'Accepted';
+          if (st === 'Accepted') scoreBadge = `<span style="background: rgba(34, 197, 94, 0.1); color: var(--status-green, #22c55e); border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.8rem; font-weight: bold;">${st} ${s.score}/${s.max_score}</span>`;
+          else if (st === 'Wrong') scoreBadge = `<span style="background: rgba(239, 68, 68, 0.1); color: var(--status-red, #ef4444); border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.8rem; font-weight: bold;">${st} ${s.score}/${s.max_score}</span>`;
+          else scoreBadge = `<span style="background: rgba(245, 158, 11, 0.1); color: var(--status-orange, #f59e0b); border-radius: 9999px; padding: 0.25rem 0.75rem; font-size: 0.8rem; font-weight: bold;">${st} ${s.score}/${s.max_score}</span>`;
         }
 
         return `
@@ -1943,7 +2162,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('hw-desc').value = homework.description || '';
     document.getElementById('hw-points').value = homework.total_points || 100;
     if (homework.deadline) {
-      const deadline = new Date(homework.deadline);
+      const deadline = window.parseDbDate(homework.deadline);
       deadline.setMinutes(deadline.getMinutes() - deadline.getTimezoneOffset());
       document.getElementById('hw-deadline').value = deadline.toISOString().slice(0, 16);
     } else {
@@ -2020,15 +2239,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     const r = window.resourcesCache?.[resourceId];
     if (!r) return;
     editingResourceId = r.resource_id;
-    
+
     document.getElementById('res-title').value = r.resource_title;
-    document.getElementById('res-url').value = r.resource_url;
+    let displayUrl = r.resource_url;
+    const urlInput = document.getElementById('res-url');
+    if (r.resource_url && r.resource_url.startsWith('/uploads/')) {
+       displayUrl = window.getAttachmentLabel ? window.getAttachmentLabel(r.resource_url) : r.resource_url.split('/').pop().replace(/^\d+-/, '');
+       urlInput.dataset.realUrl = r.resource_url;
+       urlInput.dataset.originalName = displayUrl;
+    } else {
+       urlInput.dataset.realUrl = '';
+       urlInput.dataset.originalName = '';
+    }
+    urlInput.value = displayUrl;
     document.getElementById('res-type').value = r.resource_type || 'link';
     document.getElementById('res-desc').value = r.resource_description || '';
-    
+
     if (resModalTitle) resModalTitle.innerHTML = '<i class="fa-solid fa-pen" style="color: var(--primary-color);"></i> Edit Resource';
     if (submitResBtn) submitResBtn.innerHTML = '<i class="fa-solid fa-save"></i> Save Changes';
-    
+
     resModal.classList.add('active');
   };
 
@@ -2084,7 +2313,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       resFileStatus.innerHTML = `<span style="color: var(--primary-color); font-size: 0.8rem; font-weight: 600;"><i class="fa-solid fa-spinner fa-spin"></i> Uploading ${file.name}...</span>`;
       try {
         const uploaded = await uploadFileHelper(file);
-        if (resUrlInput) resUrlInput.value = uploaded.url;
+        if (resUrlInput) {
+          resUrlInput.value = uploaded.original_name;
+          resUrlInput.dataset.realUrl = uploaded.url;
+          resUrlInput.dataset.originalName = uploaded.original_name;
+        }
 
         const ext = file.name.split('.').pop().toLowerCase();
         const resTypeSelect = document.getElementById('res-type');
@@ -2097,7 +2330,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         resFileStatus.innerHTML = `
           <div class="file-chip">
-            <i class="fa-solid fa-file"></i> Attached: <a href="${uploaded.url}" target="_blank">${uploaded.original_name}</a>
+            <i class="fa-solid fa-file"></i> Attached: <a href="#" onclick="openAttachment('${uploaded.url}', event)">${uploaded.original_name}</a>
           </div>
         `;
         showToast(`Resource file ${uploaded.original_name} uploaded successfully!`, 'success');
@@ -2111,7 +2344,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('resource-form').onsubmit = async (e) => {
     e.preventDefault();
     const resTitle = document.getElementById('res-title').value.trim();
-    const resUrl = document.getElementById('res-url').value.trim();
+    let resUrl = document.getElementById('res-url').value.trim();
+    const resUrlInputNode = document.getElementById('res-url');
+    if (resUrlInputNode.dataset.realUrl && resUrl === resUrlInputNode.dataset.originalName) {
+      resUrl = resUrlInputNode.dataset.realUrl;
+    }
     const errorBox = document.getElementById('res-error');
     errorBox.style.display = 'none';
 
@@ -2243,7 +2480,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     editingSessionId = session.session_id;
     document.getElementById('session-title-input').value = session.session_title || '';
     document.getElementById('session-desc-input').value = session.session_description || '';
-    const scheduled = new Date(session.scheduled_time);
+    const scheduled = window.parseDbDate(session.scheduled_time);
     scheduled.setMinutes(scheduled.getMinutes() - scheduled.getTimezoneOffset());
     document.getElementById('session-time-input').value = scheduled.toISOString().slice(0, 16);
     document.getElementById('session-duration-input').value = session.expected_duration || 60;
@@ -2431,13 +2668,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadClassroomHeader();
 });
 
+let isStartingLive = false;
 window.startLiveSessionItem = async (sessionId) => {
+  if (isStartingLive) return;
+  isStartingLive = true;
   try {
     await apiFetch(`/live-sessions/${sessionId}/start`, { method: 'PUT' });
     showToast('Live session started! Learners notified.', 'success');
     window.location.reload();
   } catch (err) {
     showToast(err.message, 'error');
+    isStartingLive = false;
   }
 };
 
@@ -2471,13 +2712,20 @@ let questionCount = 0;
 
 function closeModal(modalId) {
   const m = document.getElementById(modalId);
-  if (m) m.classList.remove('active');
+  if (m) {
+    m.classList.remove('active');
+    m.style.display = 'none';
+  }
 }
 window.closeModal = closeModal;
 
 function openModal(modalId) {
   const m = document.getElementById(modalId);
-  if (m) m.classList.add('active');
+  if (m) {
+    m.classList.add('active');
+    m.style.display = 'flex';
+    m.style.opacity = '1';
+  }
 }
 window.openModal = openModal;
 
@@ -2499,7 +2747,7 @@ const loadQuizzesTab = async () => {
           classroomData = clsRes.data;
           window.classroomData = clsRes.data;
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     const userRole = (classroomData?.user_role || window.classroomData?.user_role || '').toLowerCase();
@@ -2527,7 +2775,7 @@ const loadQuizzesTab = async () => {
     }
 
     container.innerHTML = quizzes.map(q => {
-      const typeBadge = q.quiz_type === 'live' 
+      const typeBadge = q.quiz_type === 'live'
         ? `<span class="badge badge-yellow" style="font-weight: 700;"><i class="fa-solid fa-bolt"></i> Scheduled Live Exam</span>`
         : `<span class="badge badge-blue" style="font-weight: 700;"><i class="fa-solid fa-stopwatch"></i> Flexible Window</span>`;
 
@@ -2555,11 +2803,16 @@ const loadQuizzesTab = async () => {
       }
 
       if (isInstructor) {
-        actionBtn += ` <button class="btn btn-outline btn-sm" onclick="openQuizLeaderboard(${q.quiz_id})"><i class="fa-solid fa-trophy"></i> Results & Approve</button>`;
+        statusBadge = `<span class="badge badge-blue">👨‍🏫 Staff View</span>`;
+        actionBtn = `
+          <button class="btn btn-primary btn-sm" onclick="openQuizLeaderboard(${q.quiz_id})"><i class="fa-solid fa-trophy"></i> Submissions & Grades</button>
+          <button class="btn btn-outline btn-sm" onclick="openEditQuizModal(${q.quiz_id})"><i class="fa-solid fa-pen"></i> Edit</button>
+          <button class="btn btn-outline btn-sm" onclick="deleteQuiz(${q.quiz_id})" style="color: var(--status-red); border-color: var(--status-red);"><i class="fa-solid fa-trash"></i> Delete</button>
+        `;
       }
 
-      const startTimeStr = q.start_time ? new Date(q.start_time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Anytime';
-      const endTimeStr = q.end_time ? new Date(q.end_time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'No Expiry';
+      const startTimeStr = q.start_time ? window.parseDbDate(q.start_time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Anytime';
+      const endTimeStr = q.end_time ? window.parseDbDate(q.end_time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'No Expiry';
 
       return `
         <div class="card" style="display: flex; flex-direction: column; justify-content: space-between; padding: 1.25rem;">
@@ -2596,12 +2849,22 @@ function openCreateQuizModal() {
   const inputEl = document.getElementById('quiz-classroom-id-val');
   if (inputEl) inputEl.value = classroomId;
 
+  if (document.getElementById('editing-quiz-id')) {
+    document.getElementById('editing-quiz-id').value = '';
+  }
+
   const form = document.getElementById('create-quiz-form');
   if (form) form.reset();
   const builder = document.getElementById('quiz-questions-builder-container');
   if (builder) builder.innerHTML = '';
   questionCount = 0;
   addQuestionToBuilder();
+
+  const modalTitle = document.querySelector('#create-quiz-modal .modal-header h3');
+  if (modalTitle) modalTitle.innerHTML = '<i class="fa-solid fa-pen-to-square" style="color: var(--primary-color);"></i> Create New Quiz / Exam';
+  const submitBtn = document.getElementById('btn-save-quiz');
+  if (submitBtn) submitBtn.innerHTML = '<i class="fa-solid fa-check"></i> Publish Quiz & Auto-Sync Calendar';
+
   openModal('create-quiz-modal');
 }
 window.openCreateQuizModal = openCreateQuizModal;
@@ -2626,13 +2889,22 @@ function addQuestionToBuilder() {
       <input type="text" class="form-control q-text-input" placeholder="Enter Question Prompt (e.g. Write a function to reverse a string in Python)" required>
     </div>
 
+    <div style="margin-bottom: 0.65rem;">
+      <label style="font-size: 0.75rem; font-weight: 600; color: var(--text-main); display: block; margin-bottom: 0.25rem;">
+        <i class="fa-solid fa-paperclip" style="color: var(--primary-color);"></i> Question File Attachment (Optional - PDF, Image, Doc, PPTX, etc.)
+      </label>
+      <input type="file" class="form-control q-file-input" onchange="handleQuestionFileUpload(event, ${qId})" style="font-size: 0.8rem;">
+      <input type="hidden" class="q-file-url-val" id="q-file-url-val-${qId}">
+      <div id="q-file-preview-${qId}" style="margin-top: 0.35rem;"></div>
+    </div>
+
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.65rem;">
       <div>
         <label style="font-size: 0.75rem; font-weight: 600;">Question Type</label>
         <select class="form-control q-type-input" onchange="onQuestionTypeChange(${qId})">
           <option value="mcq">Multiple Choice (MCQ)</option>
-          <option value="true_false">True / False</option>
-          <option value="coding">💻 Coding Question (Auto-Evaluated)</option>
+          <option value="coding">🤖 Auto Evaluate (Coding)</option>
+          <option value="file">📝 File / Text Answer</option>
         </select>
       </div>
       <div>
@@ -2690,6 +2962,13 @@ function addQuestionToBuilder() {
         </div>
       </div>
     </div>
+
+    <!-- File Upload Container -->
+    <div id="q-file-container-${qId}" style="display: none; background: var(--card-bg); padding: 0.75rem; border-radius: 0.5rem; border: 1px solid var(--border-color);">
+      <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">
+        <i class="fa-solid fa-file-pen" style="color: var(--primary-color);"></i> <strong>File / Text Answer:</strong> Students can write a text response in a text box OR upload a file attachment (PDF, DOCX, PPTX, Image, Code, ZIP, etc.) OR both!
+      </p>
+    </div>
   `;
 
   container.appendChild(div);
@@ -2724,7 +3003,7 @@ function addTestCaseToQuestion(qId) {
       </div>
       <div>
         <label style="font-size: 0.7rem; color: var(--text-muted); display: block; font-weight: 600;">Expected Output (stdout) *</label>
-        <textarea class="form-control q-tc-expected" rows="2" placeholder="e.g. 15" style="font-family: monospace; font-size: 0.8rem;" required></textarea>
+        <textarea class="form-control q-tc-expected" rows="2" placeholder="e.g. 15" style="font-family: monospace; font-size: 0.8rem;"></textarea>
       </div>
     </div>
   `;
@@ -2740,17 +3019,29 @@ function onQuestionTypeChange(qId) {
 
   const mcqContainer = document.getElementById(`q-mcq-container-${qId}`);
   const codingContainer = document.getElementById(`q-coding-container-${qId}`);
+  const fileContainer = document.getElementById(`q-file-container-${qId}`);
 
   if (qType === 'coding') {
     if (mcqContainer) mcqContainer.style.display = 'none';
     if (codingContainer) codingContainer.style.display = 'block';
+    if (fileContainer) fileContainer.style.display = 'none';
 
     block.querySelectorAll('.q-opt-input').forEach(i => i.removeAttribute('required'));
+    block.querySelectorAll('.q-tc-expected').forEach(i => i.setAttribute('required', 'true'));
+  } else if (qType === 'file') {
+    if (mcqContainer) mcqContainer.style.display = 'none';
+    if (codingContainer) codingContainer.style.display = 'none';
+    if (fileContainer) fileContainer.style.display = 'block';
+
+    block.querySelectorAll('.q-opt-input').forEach(i => i.removeAttribute('required'));
+    block.querySelectorAll('.q-tc-expected').forEach(i => i.removeAttribute('required'));
   } else {
     if (mcqContainer) mcqContainer.style.display = 'block';
     if (codingContainer) codingContainer.style.display = 'none';
+    if (fileContainer) fileContainer.style.display = 'none';
 
     block.querySelectorAll('.q-opt-input').forEach(i => i.setAttribute('required', 'true'));
+    block.querySelectorAll('.q-tc-expected').forEach(i => i.removeAttribute('required'));
   }
 }
 window.onQuestionTypeChange = onQuestionTypeChange;
@@ -2760,6 +3051,118 @@ function removeQuestionFromBuilder(qId) {
   if (el) el.remove();
 }
 window.removeQuestionFromBuilder = removeQuestionFromBuilder;
+
+async function openEditQuizModal(quizId) {
+  try {
+    const res = await apiFetch(`/quizzes/${quizId}`);
+    if (!res || !res.success) {
+      showToast(res.message || 'Failed to load quiz details', 'error');
+      return;
+    }
+
+    const { quiz, questions } = res;
+
+    let editIdInput = document.getElementById('editing-quiz-id');
+    if (!editIdInput) {
+      editIdInput = document.createElement('input');
+      editIdInput.type = 'hidden';
+      editIdInput.id = 'editing-quiz-id';
+      document.getElementById('create-quiz-form').appendChild(editIdInput);
+    }
+    editIdInput.value = quiz.quiz_id;
+
+    document.getElementById('quiz-classroom-id-val').value = quiz.classroom_id;
+    document.getElementById('quiz-title-input').value = quiz.title;
+    document.getElementById('quiz-desc-input').value = quiz.description || '';
+    document.getElementById('quiz-duration-input').value = quiz.duration_minutes || 15;
+
+    if (quiz.start_time) {
+      const d = window.parseDbDate(quiz.start_time);
+      const localIso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      document.getElementById('quiz-start-input').value = localIso;
+    } else {
+      document.getElementById('quiz-start-input').value = '';
+    }
+
+    if (quiz.end_time) {
+      const d = window.parseDbDate(quiz.end_time);
+      const localIso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      document.getElementById('quiz-end-input').value = localIso;
+    } else {
+      document.getElementById('quiz-end-input').value = '';
+    }
+
+    const radio = document.querySelector(`input[name="quiz_type_radio"][value="${quiz.quiz_type}"]`);
+    if (radio) radio.checked = true;
+
+    const builder = document.getElementById('quiz-questions-builder-container');
+    builder.innerHTML = '';
+    questionCount = 0;
+
+    if (questions && questions.length > 0) {
+      questions.forEach(q => {
+        addQuestionToBuilder();
+        const qId = questionCount;
+        const block = document.getElementById(`q-block-${qId}`);
+
+        block.querySelector('.q-text-input').value = q.question_text;
+        block.querySelector('.q-type-input').value = q.question_type;
+        block.querySelector('.q-points-input').value = q.points;
+
+        if (q.question_file_url) {
+          block.querySelector('.q-file-url-val').value = q.question_file_url;
+          const origName = q.question_file_url.split('/').pop().replace(/^\d+-/, '');
+          const previewEl = document.getElementById(`q-file-preview-${qId}`);
+          previewEl.innerHTML = `
+            <span class="attachment-pill" style="display: inline-flex; align-items: center; gap: 0.4rem; background: var(--sidebar-active-bg); color: var(--primary-color); padding: 0.25rem 0.5rem; border-radius: 6px; font-size: 0.75rem; font-weight: 600;">
+              <i class="fa-solid fa-paperclip"></i> ${escapeHtml(truncateFilename(origName, 22))}
+              <i class="fa-solid fa-xmark" onclick="removeQuestionFileAttachment(${qId})" style="cursor: pointer; margin-left: 0.25rem;"></i>
+            </span>
+          `;
+        }
+
+        onQuestionTypeChange(qId);
+
+        if (q.question_type === 'mcq' && q.options) {
+          const optInputs = block.querySelectorAll('.q-opt-input');
+          const radios = block.querySelectorAll(`input[name^="correct_opt_"]`);
+          q.options.forEach((opt, oIdx) => {
+            if (optInputs[oIdx]) optInputs[oIdx].value = opt.option_text;
+            if (opt.is_correct && radios[oIdx]) radios[oIdx].checked = true;
+          });
+        }
+      });
+    } else {
+      addQuestionToBuilder();
+    }
+
+    const modalTitle = document.querySelector('#create-quiz-modal .modal-header h3');
+    if (modalTitle) modalTitle.innerHTML = '<i class="fa-solid fa-pen-to-square" style="color: var(--primary-color);"></i> Edit Quiz / Exam';
+    const submitBtn = document.getElementById('btn-save-quiz');
+    if (submitBtn) submitBtn.innerHTML = '<i class="fa-solid fa-save"></i> Save Quiz Changes';
+
+    openModal('create-quiz-modal');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+window.openEditQuizModal = openEditQuizModal;
+
+async function deleteQuiz(quizId) {
+  if (!confirm('Are you sure you want to delete this quiz/exam?')) return;
+  try {
+    const res = await apiFetch(`/quizzes/${quizId}`, { method: 'DELETE' });
+    if (res && res.success) {
+      showToast('🗑️ Quiz deleted successfully!', 'success');
+      await loadQuizzesTab();
+    } else {
+      showToast(res.message || 'Failed to delete quiz.', 'error');
+    }
+  } catch (err) {
+    showToast(err.message || 'Delete error.', 'error');
+  }
+}
+window.deleteQuiz = deleteQuiz;
 
 async function handleCourseCreateQuizSubmit(event) {
   event.preventDefault();
@@ -2783,10 +3186,11 @@ async function handleCourseCreateQuizSubmit(event) {
     const qText = block.querySelector('.q-text-input').value.trim();
     const qType = block.querySelector('.q-type-input').value;
     const qPoints = parseInt(block.querySelector('.q-points-input').value, 10);
+    const qFileUrl = block.querySelector('.q-file-url-val')?.value || null;
 
     if (qType === 'coding') {
       const starter = block.querySelector('.q-starter-input').value;
-      
+
       const tcBlocks = block.querySelectorAll('.tc-item-block');
       const test_cases = [];
       tcBlocks.forEach(tcBlock => {
@@ -2809,8 +3213,16 @@ async function handleCourseCreateQuizSubmit(event) {
         question_type: 'coding',
         coding_language: 'python',
         starter_code: starter,
+        question_file_url: qFileUrl,
         points: qPoints,
         test_cases
+      });
+    } else if (qType === 'file') {
+      questions.push({
+        question_text: qText,
+        question_type: 'file',
+        question_file_url: qFileUrl,
+        points: qPoints
       });
     } else {
       const optInputs = block.querySelectorAll('.q-opt-input');
@@ -2831,18 +3243,23 @@ async function handleCourseCreateQuizSubmit(event) {
       questions.push({
         question_text: qText,
         question_type: qType,
+        question_file_url: qFileUrl,
         points: qPoints,
         options
       });
     }
   });
 
+  const editingQuizId = document.getElementById('editing-quiz-id')?.value;
+  const endpoint = editingQuizId ? `/quizzes/${editingQuizId}` : '/quizzes/create';
+  const method = editingQuizId ? 'PUT' : 'POST';
+
   const btn = document.getElementById('btn-save-quiz');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Publishing...'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...'; }
 
   try {
-    const res = await apiFetch('/quizzes/create', {
-      method: 'POST',
+    const res = await apiFetch(endpoint, {
+      method,
       body: JSON.stringify({
         classroom_id,
         title,
@@ -2856,15 +3273,16 @@ async function handleCourseCreateQuizSubmit(event) {
     });
 
     if (res && res.success) {
-      showToast('🎉 Quiz published and marked on Academic Calendar!', 'success');
+      showToast(editingQuizId ? '✅ Quiz updated successfully!' : '🎉 Quiz published and marked on Academic Calendar!', 'success');
       closeModal('create-quiz-modal');
+      if (document.getElementById('editing-quiz-id')) document.getElementById('editing-quiz-id').value = '';
       await loadQuizzesTab();
     } else {
-      showToast(res.message || 'Failed to create quiz.', 'error');
+      showToast(res.message || 'Failed to save quiz.', 'error');
     }
   } catch (err) {
-    console.error('Create quiz error:', err);
-    showToast(err.message || 'Error publishing quiz.', 'error');
+    console.error('Save quiz error:', err);
+    showToast(err.message || 'Error saving quiz.', 'error');
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Publish Quiz & Auto-Sync Calendar'; }
   }
@@ -2894,15 +3312,41 @@ async function startQuizExam(quizId) {
       quizId,
       remainingSeconds: remaining_seconds,
       questions,
-      answersMap: {}
+      answersMap: {},
+      codeMap: {},
+      languageMap: {},
+      textMap: {},
+      fileMap: {}
     };
 
     if (savedAnswers && Array.isArray(savedAnswers)) {
       savedAnswers.forEach(sa => {
         if (sa.selected_option_id) {
           activeExamState.answersMap[sa.question_id] = sa.selected_option_id;
-        } else if (sa.answer_text) {
-          activeExamState.answersMap[sa.question_id] = sa.answer_text;
+        }
+        if (sa.answer_text) {
+          let parsedText = '';
+          let parsedFile = '';
+          try {
+            if (sa.answer_text.startsWith('{')) {
+              const obj = JSON.parse(sa.answer_text);
+              parsedText = obj.text || '';
+              parsedFile = obj.file || '';
+            } else if (sa.answer_text.startsWith('/uploads/') || sa.answer_text.startsWith('data:')) {
+              parsedFile = sa.answer_text;
+            } else {
+              parsedText = sa.answer_text;
+            }
+          } catch (e) {
+            parsedText = sa.answer_text;
+          }
+
+          activeExamState.textMap[sa.question_id] = parsedText;
+          activeExamState.fileMap[sa.question_id] = parsedFile;
+          activeExamState.codeMap[sa.question_id] = sa.answer_text;
+        }
+        if (sa.coding_language) {
+          activeExamState.languageMap[sa.question_id] = sa.coding_language;
         }
       });
     }
@@ -2930,7 +3374,7 @@ function renderPreStartCountdownModal(data) {
   const navGrid = document.getElementById('exam-nav-grid');
 
   document.getElementById('exam-modal-title').textContent = quiz.title;
-  document.getElementById('exam-modal-subtitle').textContent = `🔒 Scheduled Live Exam (Opens at ${new Date(start_time).toLocaleString()})`;
+  document.getElementById('exam-modal-subtitle').textContent = `🔒 Scheduled Live Exam (Opens at ${window.parseDbDate(start_time).toLocaleString()})`;
 
   if (navGrid) navGrid.innerHTML = '<span style="font-size:0.75rem; color:var(--text-muted);">Locked until start time</span>';
 
@@ -2993,8 +3437,21 @@ function renderExamQuestions(questions) {
   container.innerHTML = questions.map((q, idx) => {
     const qNum = idx + 1;
 
+    let teacherFileHtml = '';
+    if (q.question_file_url) {
+      teacherFileHtml = `
+        <div style="margin-bottom: 0.85rem; background: var(--card-bg); padding: 0.65rem 0.85rem; border-radius: 0.5rem; border: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.5rem;">
+          <i class="fa-solid fa-paperclip" style="color: var(--primary-color);"></i>
+          <strong style="font-size: 0.85rem; color: var(--text-main);">Question Attachment:</strong>
+          <a href="#" onclick="openAttachment('${q.question_file_url}', event)" style="font-weight: 600; color: var(--primary-color); font-size: 0.85rem;">
+            <i class="fa-solid fa-file-arrow-down"></i> ${window.truncateFilename(window.getAttachmentLabel(q.question_file_url))}
+          </a>
+        </div>
+      `;
+    }
+
     if (q.question_type === 'coding') {
-      const savedCode = activeExamState.answersMap[q.question_id] || q.starter_code || '';
+      const savedCode = activeExamState.codeMap[q.question_id] || q.starter_code || '';
 
       let tcHtml = '';
       if (q.test_cases && q.test_cases.length > 0) {
@@ -3005,14 +3462,14 @@ function renderExamQuestions(questions) {
             </div>
             <div style="display: flex; flex-direction: column; gap: 0.5rem;">
               ${q.test_cases.map((tc, tcIdx) => {
-                if (tc.is_hidden) {
-                  return `
+          if (tc.is_hidden) {
+            return `
                     <div style="font-size: 0.8rem; padding: 0.5rem 0.75rem; background: var(--bg-body); border-radius: 0.4rem; border: 1px solid var(--border-color); color: var(--text-muted); display: flex; align-items: center; gap: 0.4rem;">
                       <i class="fa-solid fa-lock" style="color: var(--status-orange);"></i> <strong>Test Case #${tcIdx + 1}:</strong> 🔒 Hidden Test Case (Auto-evaluated upon submission)
                     </div>
                   `;
-                }
-                return `
+          }
+          return `
                   <div style="font-size: 0.8rem; padding: 0.5rem 0.75rem; background: var(--bg-body); border-radius: 0.4rem; border: 1px solid var(--border-color);">
                     <div style="font-weight: 700; color: var(--primary-color); margin-bottom: 0.25rem;">Test Case #${tcIdx + 1} (Sample)</div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-family: monospace; font-size: 0.775rem;">
@@ -3021,7 +3478,7 @@ function renderExamQuestions(questions) {
                     </div>
                   </div>
                 `;
-              }).join('')}
+        }).join('')}
             </div>
           </div>
         `;
@@ -3033,13 +3490,60 @@ function renderExamQuestions(questions) {
             <span class="badge badge-purple" style="font-weight: 700;">Question ${qNum} • 💻 Coding (${(q.coding_language || 'python').toUpperCase()})</span>
             <span class="badge" style="background: var(--sidebar-active-bg); color: var(--primary-color);">${q.points} Points</span>
           </div>
-          <h4 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 1rem; color: var(--text-main);">${escapeHtml(q.question_text)}</h4>
+          <h4 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--text-main);">${escapeHtml(q.question_text)}</h4>
           
+          ${teacherFileHtml}
+
           ${tcHtml}
 
           <div class="form-group" style="margin-top: 1rem;">
             <label style="font-size: 0.8rem; font-weight: 600; margin-bottom: 0.35rem; display: block;">Your Solution Code</label>
             <textarea id="exam-code-${q.question_id}" class="form-control" rows="8" style="font-family: monospace; font-size: 0.9rem;" oninput="onExamCodeInput(${q.question_id})">${escapeHtml(savedCode)}</textarea>
+          </div>
+        </div>
+      `;
+    }
+
+    if (q.question_type === 'file') {
+      const savedText = activeExamState.textMap ? (activeExamState.textMap[q.question_id] || '') : '';
+      const savedFileUrl = activeExamState.fileMap ? (activeExamState.fileMap[q.question_id] || '') : (activeExamState.codeMap[q.question_id] || '');
+
+      let filePreviewHtml = '';
+      if (savedFileUrl && (savedFileUrl.startsWith('/uploads/') || savedFileUrl.startsWith('data:'))) {
+        filePreviewHtml = `
+          <div class="file-chip" style="margin-top: 0.5rem; display: flex; align-items: center; justify-content: space-between; background: var(--card-bg); padding: 0.55rem 0.85rem; border-radius: 0.5rem; border: 1px solid var(--border-color);">
+            <span><i class="fa-solid fa-file" style="color: var(--primary-color);"></i> Attached Answer: <a href="#" onclick="openAttachment('${savedFileUrl}', event)" style="font-weight: 600; color: var(--primary-color);">${window.truncateFilename(window.getAttachmentLabel(savedFileUrl))}</a></span>
+            <button type="button" class="btn btn-outline btn-sm" onclick="removeExamFile(${q.question_id})" style="color: var(--status-red); font-size: 0.75rem; padding: 0.2rem 0.5rem;"><i class="fa-solid fa-trash"></i> Delete</button>
+          </div>
+        `;
+      }
+
+      return `
+        <div id="exam-q-box-${q.question_id}" style="background: var(--bg-body); padding: 1.25rem; border-radius: 0.75rem; border: 1px solid var(--border-color); margin-bottom: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
+            <span class="badge badge-purple" style="font-weight: 700;">Question ${qNum} of ${questions.length} (File / Text)</span>
+            <span class="badge" style="background: var(--sidebar-active-bg); color: var(--primary-color);">${q.points} Points</span>
+          </div>
+          <h4 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--text-main);">${escapeHtml(q.question_text)}</h4>
+
+          ${teacherFileHtml}
+
+          <div style="margin-bottom: 0.85rem;">
+            <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-main); margin-bottom: 0.35rem; display: block;">
+              <i class="fa-solid fa-pen"></i> Written Answer (Text):
+            </label>
+            <textarea id="exam-text-${q.question_id}" oninput="onExamTextInput(${q.question_id})" class="form-control" rows="3" placeholder="Type your text answer here (optional if uploading a file)..." style="font-size: 0.9rem;">${escapeHtml(savedText)}</textarea>
+          </div>
+
+          <div style="margin-bottom: 0.5rem;">
+            <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-main); margin-bottom: 0.35rem; display: block;">
+              <i class="fa-solid fa-cloud-arrow-up" style="color: var(--primary-color);"></i> Upload Answer File (PDF, DOCX, PPTX, image, code, zip, etc.):
+            </label>
+            <input type="file" id="exam-file-input-${q.question_id}" onchange="handleExamFileUpload(event, ${q.question_id})" class="form-control" style="font-size: 0.85rem;">
+          </div>
+
+          <div id="exam-file-status-${q.question_id}">
+            ${filePreviewHtml}
           </div>
         </div>
       `;
@@ -3064,7 +3568,6 @@ function renderExamQuestions(questions) {
           <span class="badge" style="background: var(--sidebar-active-bg); color: var(--primary-color);">${q.points} Points</span>
         </div>
         <h4 style="font-size: 1.05rem; font-weight: 600; margin-bottom: 1rem; color: var(--text-main);">${escapeHtml(q.question_text)}</h4>
-        <div style="display: flex; flex-direction: column; gap: 0.6rem;">
           ${optionsHtml}
         </div>
       </div>
@@ -3078,7 +3581,12 @@ function renderQuestionNavigator(questions) {
 
   navGrid.innerHTML = questions.map((q, idx) => {
     const qNum = idx + 1;
-    const isAnswered = Boolean(activeExamState.answersMap[q.question_id]);
+    const isMcqAnswered = Boolean(activeExamState.answersMap[q.question_id]);
+    const isCodingAnswered = Boolean(activeExamState.codeMap && activeExamState.codeMap[q.question_id] && activeExamState.codeMap[q.question_id].trim());
+    const isTextAnswered = Boolean(activeExamState.textMap && activeExamState.textMap[q.question_id] && activeExamState.textMap[q.question_id].trim());
+    const isFileAnswered = Boolean(activeExamState.fileMap && activeExamState.fileMap[q.question_id]);
+    const isAnswered = isMcqAnswered || isCodingAnswered || isTextAnswered || isFileAnswered;
+
     const bgStyle = isAnswered ? 'background: var(--status-green); color: white;' : 'background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main);';
 
     return `
@@ -3094,40 +3602,81 @@ function scrollToQuestion(qId) {
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
+function updateQuestionNavState(qId) {
+  if (!activeExamState) return;
+  const isMcqAnswered = Boolean(activeExamState.answersMap[qId]);
+  const isCodingAnswered = Boolean(activeExamState.codeMap && activeExamState.codeMap[qId] && activeExamState.codeMap[qId].trim());
+  const isTextAnswered = Boolean(activeExamState.textMap && activeExamState.textMap[qId] && activeExamState.textMap[qId].trim());
+  const isFileAnswered = Boolean(activeExamState.fileMap && activeExamState.fileMap[qId]);
+  const isAnswered = isMcqAnswered || isCodingAnswered || isTextAnswered || isFileAnswered;
+
+  const navBtn = document.getElementById(`nav-btn-q-${qId}`);
+  if (navBtn) {
+    if (isAnswered) {
+      navBtn.style.cssText = 'background: var(--status-green); color: white; font-weight: 700; padding: 0.5rem 0; border-radius: 0.4rem; cursor: pointer;';
+    } else {
+      navBtn.style.cssText = 'background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main); font-weight: 700; padding: 0.5rem 0; border-radius: 0.4rem; cursor: pointer;';
+    }
+  }
+}
+
 async function onExamOptionSelect(qId, optId) {
   if (!activeExamState) return;
 
   activeExamState.answersMap[qId] = optId;
-
-  const navBtn = document.getElementById(`nav-btn-q-${qId}`);
-  if (navBtn) {
-    navBtn.style.cssText = 'background: var(--status-green); color: white; font-weight: 700; padding: 0.5rem 0; border-radius: 0.4rem; cursor: pointer;';
-  }
-
-  try {
-    await apiFetch(`/quizzes/attempt/${activeExamState.attemptId}/save-progress`, {
-      method: 'POST',
-      body: JSON.stringify({
-        question_id: qId,
-        selected_option_id: optId
-      })
-    });
-  } catch (err) {
-    console.error('Autosave error:', err);
-  }
+  updateQuestionNavState(qId);
+  saveQuestionProgress(qId);
 }
 
+let examCodeDebounceTimers = {};
 async function onExamCodeInput(qId) {
   if (!activeExamState) return;
   const textarea = document.getElementById(`exam-code-${qId}`);
   if (!textarea) return;
 
   const codeVal = textarea.value;
-  activeExamState.answersMap[qId] = codeVal;
+  activeExamState.codeMap[qId] = codeVal;
+  updateQuestionNavState(qId);
 
-  const navBtn = document.getElementById(`nav-btn-q-${qId}`);
-  if (navBtn) {
-    navBtn.style.cssText = codeVal.trim() ? 'background: var(--status-green); color: white; font-weight: 700; padding: 0.5rem 0; border-radius: 0.4rem; cursor: pointer;' : 'background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main); font-weight: 700; padding: 0.5rem 0; border-radius: 0.4rem; cursor: pointer;';
+  if (examCodeDebounceTimers[qId]) clearTimeout(examCodeDebounceTimers[qId]);
+  examCodeDebounceTimers[qId] = setTimeout(() => {
+    saveQuestionProgress(qId);
+  }, 800);
+}
+
+function onExamTextInput(qId) {
+  if (!activeExamState) return;
+  const textArea = document.getElementById(`exam-text-${qId}`);
+  if (textArea) {
+    if (!activeExamState.textMap) activeExamState.textMap = {};
+    activeExamState.textMap[qId] = textArea.value;
+    updateQuestionNavState(qId);
+
+    if (examCodeDebounceTimers[qId]) clearTimeout(examCodeDebounceTimers[qId]);
+    examCodeDebounceTimers[qId] = setTimeout(() => {
+      saveQuestionProgress(qId);
+    }, 800);
+  }
+}
+
+async function saveQuestionProgress(qId) {
+  if (!activeExamState) return;
+  const selectedOptionId = activeExamState.answersMap[qId] || null;
+  const codingLanguage = activeExamState.languageMap ? (activeExamState.languageMap[qId] || 'python') : 'python';
+
+  let answerText = activeExamState.codeMap[qId] || null;
+  const textVal = activeExamState.textMap ? activeExamState.textMap[qId] : null;
+  const fileVal = activeExamState.fileMap ? activeExamState.fileMap[qId] : null;
+
+  if (textVal || fileVal) {
+    if (textVal && fileVal) {
+      answerText = JSON.stringify({ text: textVal, file: fileVal });
+    } else if (fileVal) {
+      answerText = fileVal;
+    } else {
+      answerText = textVal;
+    }
+    activeExamState.codeMap[qId] = answerText;
   }
 
   try {
@@ -3135,13 +3684,65 @@ async function onExamCodeInput(qId) {
       method: 'POST',
       body: JSON.stringify({
         question_id: qId,
-        answer_text: codeVal
+        selected_option_id: selectedOptionId,
+        answer_text: answerText,
+        coding_language: codingLanguage
       })
     });
   } catch (err) {
     console.error('Autosave error:', err);
   }
 }
+
+async function handleExamFileUpload(event, qId) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const statusContainer = document.getElementById(`exam-file-status-${qId}`);
+  if (statusContainer) {
+    statusContainer.innerHTML = `<span style="font-size: 0.85rem; color: var(--primary-color);"><i class="fa-solid fa-spinner fa-spin"></i> Uploading ${escapeHtml(file.name)}...</span>`;
+  }
+  try {
+    const uploaded = await uploadFileHelper(file);
+    const fileUrl = uploaded.url;
+    if (!activeExamState.fileMap) activeExamState.fileMap = {};
+    activeExamState.fileMap[qId] = fileUrl;
+
+    updateQuestionNavState(qId);
+    await saveQuestionProgress(qId);
+
+    if (statusContainer) {
+      statusContainer.innerHTML = `
+        <div class="file-chip" style="margin-top: 0.5rem; display: flex; align-items: center; justify-content: space-between; background: var(--card-bg); padding: 0.55rem 0.85rem; border-radius: 0.5rem; border: 1px solid var(--border-color);">
+          <span><i class="fa-solid fa-file" style="color: var(--primary-color);"></i> Attached Answer: <a href="#" onclick="openAttachment('${fileUrl}', event)" style="font-weight: 600; color: var(--primary-color);">${uploaded.original_name || window.truncateFilename(window.getAttachmentLabel(fileUrl))}</a></span>
+          <button type="button" class="btn btn-outline btn-sm" onclick="removeExamFile(${qId})" style="color: var(--status-red); font-size: 0.75rem; padding: 0.2rem 0.5rem;"><i class="fa-solid fa-trash"></i> Delete</button>
+        </div>
+      `;
+    }
+    showToast(`File attached: ${uploaded.original_name || file.name}`, 'success');
+  } catch (err) {
+    console.error('Quiz file upload error:', err);
+    showToast(err.message || 'File upload failed.', 'error');
+    if (statusContainer) {
+      statusContainer.innerHTML = `<span style="font-size: 0.85rem; color: var(--status-red);"><i class="fa-solid fa-circle-exclamation"></i> Upload failed. Please try again.</span>`;
+    }
+  }
+}
+
+function removeExamFile(qId) {
+  if (!activeExamState) return;
+  if (activeExamState.fileMap) activeExamState.fileMap[qId] = '';
+  if (activeExamState.codeMap) activeExamState.codeMap[qId] = '';
+  updateQuestionNavState(qId);
+  saveQuestionProgress(qId);
+
+  const statusContainer = document.getElementById(`exam-file-status-${qId}`);
+  if (statusContainer) statusContainer.innerHTML = '';
+  const input = document.getElementById(`exam-file-input-${qId}`);
+  if (input) input.value = '';
+}
+window.handleExamFileUpload = handleExamFileUpload;
+window.removeExamFile = removeExamFile;
+window.removeExamFile = removeExamFile;
 
 function startExamTimer(initialSeconds) {
   if (activeExamTimerInterval) clearInterval(activeExamTimerInterval);
@@ -3192,7 +3793,10 @@ function confirmSubmitExam() {
   }
 }
 
+let isSubmittingExam = false;
 async function executeAutoSubmitExam(isTimeExpired = false) {
+  if (isSubmittingExam) return;
+  isSubmittingExam = true;
   if (!activeExamState) return;
   const attemptId = activeExamState.attemptId;
 
@@ -3256,6 +3860,7 @@ async function openQuizLeaderboard(quizId) {
       return;
     }
 
+    window.activeLeaderboardData = data;
     const { quiz, isStaff, leaderboard } = data;
     if (titleEl) titleEl.textContent = `${quiz.title} - Leaderboard & Submissions`;
 
@@ -3273,11 +3878,86 @@ async function openQuizLeaderboard(quizId) {
           scoreStr = `${item.total_score} / ${quiz.total_marks}`;
         }
 
-        let approveBtn = '';
-        if (isStaff && isPending) {
-          approveBtn = `
-            <button class="btn btn-primary btn-sm" onclick="approveQuizGradeItem(${item.attempt_id}, ${quiz.quiz_id})">
-              <i class="fa-solid fa-check-double"></i> Approve Score
+        let answersHtml = '';
+        if (isStaff && item.answers && item.answers.length > 0) {
+          answersHtml = item.answers.map((ans, qIdx) => {
+            let parsedAns = { text: '', file: null };
+            const rawAnsStr = ans.answer_text != null ? String(ans.answer_text).trim() : '';
+            try {
+              if (rawAnsStr.startsWith('{')) {
+                parsedAns = JSON.parse(rawAnsStr);
+              } else if (rawAnsStr.startsWith('/uploads/') || rawAnsStr.startsWith('http')) {
+                parsedAns.file = rawAnsStr;
+              } else {
+                parsedAns.text = rawAnsStr;
+              }
+            } catch (e) {
+              parsedAns.text = rawAnsStr;
+            }
+
+            let qFileChip = '';
+            if (ans.question_file_url) {
+              const origQFile = String(ans.question_file_url).split('/').pop().replace(/^\d+-/, '');
+              const truncateFn = window.truncateFilename || (s => s);
+              const safeUrl = String(ans.question_file_url).replace(/'/g, "\\'");
+              const safeName = String(origQFile).replace(/'/g, "\\'");
+              qFileChip = `
+                <div style="margin-top: 0.25rem;">
+                  <span class="attachment-pill" onclick="openAttachment('${safeUrl}', '${escapeHtml(safeName)}')" style="cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; background: var(--card-bg); padding: 0.25rem 0.5rem; border-radius: 6px; font-size: 0.75rem; font-weight: 600; border: 1px solid var(--border-color);">
+                    <i class="fa-solid fa-paperclip" style="color: var(--primary-color);"></i> Question Attachment: ${escapeHtml(truncateFn(origQFile, 22))}
+                  </span>
+                </div>
+              `;
+            }
+
+            let fileChip = '';
+            if (parsedAns.file) {
+              const origName = String(parsedAns.file).split('/').pop().replace(/^\d+-/, '');
+              const truncateFn = window.truncateFilename || (s => s);
+              const safeUrl = String(parsedAns.file).replace(/'/g, "\\'");
+              const safeName = String(origName).replace(/'/g, "\\'");
+              fileChip = `
+                <div style="margin-top: 0.35rem;">
+                  <span class="attachment-pill" onclick="openAttachment('${safeUrl}', '${escapeHtml(safeName)}')" style="cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; background: var(--card-bg); padding: 0.35rem 0.65rem; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.8rem; font-weight: 600;">
+                    <i class="fa-solid fa-paperclip" style="color: var(--primary-color);"></i> Student Uploaded File: ${escapeHtml(truncateFn(origName, 22))}
+                  </span>
+                </div>
+              `;
+            }
+
+            let studentResponseHtml = '';
+            if (parsedAns.text) {
+              studentResponseHtml = `
+                <div style="background: var(--card-bg); padding: 0.65rem 0.85rem; border-radius: 8px; margin-top: 0.35rem; white-space: pre-wrap; font-family: monospace; font-size: 0.85rem; border: 1px solid var(--border-color); color: var(--text-main);">
+                  ${escapeHtml(parsedAns.text)}
+                </div>
+              `;
+            } else if (!parsedAns.file) {
+              studentResponseHtml = `<p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem;">(No text response written)</p>`;
+            }
+
+            return `
+              <div style="background: var(--bg-body); padding: 0.85rem; border-radius: 0.65rem; margin-bottom: 0.75rem; border: 1px solid var(--border-color);">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.35rem;">
+                  <strong style="font-size: 0.85rem; color: var(--primary-color);">Q${qIdx + 1}: ${escapeHtml(ans.question_text || 'Question')}</strong>
+                  <span class="badge badge-gray" style="font-weight: 700;">${ans.points || 0} Points</span>
+                </div>
+                ${qFileChip}
+                <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-main);">
+                  <strong>Student's Response:</strong>
+                  ${studentResponseHtml}
+                  ${fileChip}
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        let teacherActionCell = '';
+        if (isStaff) {
+          teacherActionCell = `
+            <button class="btn btn-outline btn-sm" onclick="window.openQuizGradingModal(${item.attempt_id}, ${quiz.quiz_id})">
+              <i class="fa-solid fa-eye"></i> Review & Grade
             </button>
           `;
         }
@@ -3289,7 +3969,7 @@ async function openQuizLeaderboard(quizId) {
             <td style="padding: 0.75rem; color: var(--primary-color); font-weight: 800;">${scoreStr}</td>
             <td style="padding: 0.75rem; font-size: 0.85rem; color: var(--text-muted);">${mins}</td>
             <td style="padding: 0.75rem;"><span class="badge ${isPending ? 'badge-yellow' : 'badge-green'}">${isPending ? 'Pending Teacher Approval' : 'Approved'}</span></td>
-            ${isStaff ? `<td style="padding: 0.75rem;">${approveBtn}</td>` : ''}
+            ${isStaff ? `<td style="padding: 0.75rem;">${teacherActionCell}</td>` : ''}
           </tr>
         `;
       }).join('');
@@ -3323,20 +4003,11 @@ async function openQuizLeaderboard(quizId) {
   }
 }
 
-window.approveQuizGradeItem = async (attemptId, quizId) => {
-  try {
-    const res = await apiFetch(`/quizzes/attempt/${attemptId}/approve`, { method: 'POST' });
-    if (res && res.success) {
-      showToast('✅ Quiz grade approved and released to student!', 'success');
-      await openQuizLeaderboard(quizId);
-      await loadQuizzesTab();
-    } else {
-      showToast(res.message || 'Failed to approve grade.', 'error');
-    }
-  } catch (err) {
-    showToast(err.message || 'Approval error.', 'error');
-  }
-};
+
+
+
+
+
 
 
 

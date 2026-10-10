@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/style.css?v=1791552283619">
 </head>
 <body>
   <div id="navbar-container"></div>
@@ -258,8 +258,9 @@
           <!-- LEFT PANE: Channels & Contact List -->
           <div class="card" style="padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">
             <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.25rem;">Chat Channels</div>
-            <button class="btn btn-outline btn-block active-channel-btn" id="channel-group-btn" onclick="selectChatChannel('group')">
-              <i class="fa-solid fa-comments" style="color: var(--primary-color);"></i> Class Group Chat
+            <button class="btn btn-outline btn-block active-channel-btn active" id="channel-group-btn" onclick="selectChatChannel('group')" style="justify-content: space-between;">
+              <span><i class="fa-solid fa-comments" style="color: var(--primary-color);"></i> Class Group Chat</span>
+              <span id="unread-group-badge" class="badge badge-red" style="display:none; font-size: 0.65rem;">!</span>
             </button>
 
             <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid var(--border-color);">
@@ -951,10 +952,25 @@
     </div>
   </div>
 
+  <!-- Dedicated Quiz Submission Review & Grading Modal (Teacher) -->
+  <div class="modal" id="quiz-grade-review-modal" style="z-index: 99999;">
+    <div class="modal-content" style="max-width: 680px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; margin: 0;">
+          <i class="fa-solid fa-pen-ruler" style="color: var(--primary-color);"></i> Review & Grade Quiz Submission
+        </h3>
+        <button class="modal-close" onclick="closeModal('quiz-grade-review-modal')">&times;</button>
+      </div>
+      <div id="quiz-grade-review-modal-body">
+        <!-- Filled dynamically -->
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-  <script src="/js/api.js"></script>
+  <script src="/js/api.js?v=1791559900000"></script>
   <script src="/js/navbar.js"></script>
-  <script src="/js/classroom.js"></script>
+  <script src="/js/classroom.js?v=1791559900000"></script>
   <script>
     // Initialize flatpickr on date inputs
     flatpickr("#hw-deadline", {

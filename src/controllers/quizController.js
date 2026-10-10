@@ -63,14 +63,15 @@ exports.createQuiz = async (req, res) => {
       const q = questions[i];
       const qType = q.question_type || 'mcq';
       const [qResult] = await connection.query(
-        `INSERT INTO quiz_questions (quiz_id, question_text, question_type, coding_language, starter_code, points, order_number)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO quiz_questions (quiz_id, question_text, question_type, coding_language, starter_code, question_file_url, points, order_number)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           quiz_id,
           q.question_text,
           qType,
           q.coding_language || 'python',
           q.starter_code || null,
+          q.question_file_url || null,
           parseInt(q.points || 5, 10),
           i + 1
         ]
@@ -133,6 +134,17 @@ exports.createQuiz = async (req, res) => {
   }
 };
 
+const parseSafeDate = (val) => {
+  if (!val) return null;
+  if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+  if (typeof val === 'string') {
+    const cleanStr = val.replace(' ', 'T');
+    const d = new Date(cleanStr);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+};
+
 // 2. Get all quizzes for a classroom (Instructor / Student View)
 exports.getClassroomQuizzes = async (req, res) => {
   try {
@@ -155,10 +167,13 @@ exports.getClassroomQuizzes = async (req, res) => {
       let is_available = true;
       let window_status = 'active';
 
-      if (q.start_time && new Date(q.start_time) > now) {
+      const startDate = parseSafeDate(q.start_time);
+      const endDate = parseSafeDate(q.end_time);
+
+      if (startDate && startDate > now) {
         is_available = false;
         window_status = 'upcoming';
-      } else if (q.end_time && new Date(q.end_time) < now) {
+      } else if (endDate && endDate < now) {
         is_available = false;
         window_status = 'closed';
       }
@@ -196,20 +211,36 @@ exports.startQuizAttempt = async (req, res) => {
     const quiz = quizzes[0];
     const now = new Date();
 
+    // Block Instructors & TAs from attempting quizzes in their classroom
+    const [membership] = await connection.query(
+      `SELECT role FROM classroom_members WHERE classroom_id = ? AND user_id = ? AND is_active = true`,
+      [quiz.classroom_id, learner_id]
+    );
+
+    if (membership.length && ['instructor', 'ta'].includes((membership[0].role || '').toLowerCase())) {
+      return res.status(403).json({
+        success: false,
+        message: 'Instructors and TAs cannot attempt quizzes in their own classroom.'
+      });
+    }
+
+    const startDate = parseSafeDate(quiz.start_time);
+    const endDate = parseSafeDate(quiz.end_time);
+
     // Check time windows: If not started yet, return not_started status with countdown
-    if (quiz.start_time && new Date(quiz.start_time) > now) {
-      const secondsUntilStart = Math.floor((new Date(quiz.start_time).getTime() - now.getTime()) / 1000);
+    if (startDate && startDate > now) {
+      const secondsUntilStart = Math.floor((startDate.getTime() - now.getTime()) / 1000);
       return res.json({
         success: true,
         not_started: true,
         quiz,
         start_time: quiz.start_time,
         seconds_until_start: secondsUntilStart,
-        message: `Quiz has not started yet. It will open at ${new Date(quiz.start_time).toLocaleString()}`
+        message: `Quiz has not started yet. It will open at ${startDate.toLocaleString()}`
       });
     }
 
-    if (quiz.end_time && new Date(quiz.end_time) < now) {
+    if (endDate && endDate < now) {
       return res.status(400).json({
         success: false,
         message: 'This quiz window has closed.'
@@ -223,8 +254,26 @@ exports.startQuizAttempt = async (req, res) => {
     );
 
     let attempt;
+    let remaining_seconds = 0;
+    const nowTime = Date.now();
+    const durationMs = quiz.duration_minutes * 60 * 1000;
+
     if (!attempts.length) {
-      // Create new attempt
+      // Brand new attempt calculation
+      let totalAllowedExpiryMs = nowTime + durationMs;
+      if (endDate && endDate.getTime() < totalAllowedExpiryMs) {
+        totalAllowedExpiryMs = endDate.getTime();
+      }
+      remaining_seconds = Math.floor((totalAllowedExpiryMs - nowTime) / 1000);
+
+      if (remaining_seconds <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'This quiz window has closed or expired.'
+        });
+      }
+
+      // Create new attempt ONLY when valid
       const [attemptResult] = await connection.query(
         `INSERT INTO quiz_attempts (quiz_id, learner_id, started_at, status) VALUES (?, ?, NOW(), 'in_progress')`,
         [quizId, learner_id]
@@ -236,51 +285,43 @@ exports.startQuizAttempt = async (req, res) => {
       attempt = newAttempt[0];
     } else {
       attempt = attempts[0];
-    }
-
-    // If attempt is already submitted
-    if (attempt.status === 'submitted' || attempt.status === 'time_expired') {
-      return res.status(400).json({
-        success: false,
-        message: 'You have already submitted this exam.',
-        attempt
-      });
-    }
-
-    // Calculate remaining seconds server-side
-    const startedAt = new Date(attempt.started_at).getTime();
-    const nowTime = Date.now();
-    const durationMs = quiz.duration_minutes * 60 * 1000;
-
-    let totalAllowedExpiryMs;
-    if (quiz.quiz_type === 'live') {
-      // Hard cutoff at quiz.end_time
-      totalAllowedExpiryMs = quiz.end_time ? new Date(quiz.end_time).getTime() : startedAt + durationMs;
-    } else {
-      // Flexible window: started_at + durationMs, capped by end_time if present
-      totalAllowedExpiryMs = startedAt + durationMs;
-      if (quiz.end_time && new Date(quiz.end_time).getTime() < totalAllowedExpiryMs) {
-        totalAllowedExpiryMs = new Date(quiz.end_time).getTime();
+      if (attempt.status === 'submitted' || attempt.status === 'time_expired') {
+        return res.status(400).json({
+          success: false,
+          message: 'You have already submitted this exam.',
+          attempt
+        });
       }
-    }
 
-    let remaining_seconds = Math.floor((totalAllowedExpiryMs - nowTime) / 1000);
+      const startedAt = parseSafeDate(attempt.started_at)?.getTime() || nowTime;
+      let totalAllowedExpiryMs;
+      if (quiz.quiz_type === 'live') {
+        totalAllowedExpiryMs = endDate ? endDate.getTime() : startedAt + durationMs;
+      } else {
+        totalAllowedExpiryMs = startedAt + durationMs;
+        if (endDate && endDate.getTime() < totalAllowedExpiryMs) {
+          totalAllowedExpiryMs = endDate.getTime();
+        }
+      }
 
-    if (remaining_seconds <= 0) {
-      await connection.query(
-        `UPDATE quiz_attempts SET status = 'time_expired', submitted_at = NOW() WHERE attempt_id = ?`,
-        [attempt.attempt_id]
-      );
-      return res.status(400).json({
-        success: false,
-        message: 'Exam time has expired.',
-        status: 'time_expired'
-      });
+      remaining_seconds = Math.floor((totalAllowedExpiryMs - nowTime) / 1000);
+
+      if (remaining_seconds <= 0) {
+        await connection.query(
+          `UPDATE quiz_attempts SET status = 'time_expired', submitted_at = NOW() WHERE attempt_id = ?`,
+          [attempt.attempt_id]
+        );
+        return res.status(400).json({
+          success: false,
+          message: 'Exam time has expired.',
+          status: 'time_expired'
+        });
+      }
     }
 
     // Fetch Questions, Options, and Test Cases
     const [questions] = await connection.query(
-      `SELECT question_id, quiz_id, question_text, question_type, coding_language, starter_code, points, order_number
+      `SELECT question_id, quiz_id, question_text, question_type, coding_language, starter_code, question_file_url, points, order_number
        FROM quiz_questions WHERE quiz_id = ? ORDER BY order_number ASC`,
       [quizId]
     );
@@ -429,7 +470,7 @@ exports.submitQuizAttempt = async (req, res) => {
     );
 
     let totalScore = 0;
-    let hasCodingQuestion = false;
+    let hasManualGradingQuestion = false;
 
     for (const q of allQuestions) {
       const [ansRows] = await connection.query(
@@ -462,7 +503,6 @@ exports.submitQuizAttempt = async (req, res) => {
           }
         }
       } else if (q.question_type === 'coding') {
-        hasCodingQuestion = true;
         const codeContent = ansRows.length > 0 ? (ansRows[0].answer_text || '') : '';
         const studentLang = (ansRows.length > 0 && ansRows[0].coding_language) ? ansRows[0].coding_language : (q.coding_language || 'python');
 
@@ -489,12 +529,14 @@ exports.submitQuizAttempt = async (req, res) => {
             console.error('Coding question eval error:', evalErr.message);
           }
         }
+      } else if (q.question_type === 'file') {
+        hasManualGradingQuestion = true;
       }
     }
 
     const finalStatus = is_time_expired ? 'time_expired' : 'submitted';
-    // If quiz contains coding questions, set approval_status to 'pending' until teacher approves!
-    const approvalStatus = hasCodingQuestion ? 'pending' : 'approved';
+    // If quiz contains coding or file questions, set approval_status to 'pending' until teacher approves!
+    const approvalStatus = hasManualGradingQuestion ? 'pending' : 'approved';
 
     await connection.query(
       `UPDATE quiz_attempts SET status = ?, approval_status = ?, submitted_at = NOW(), total_score = ? WHERE attempt_id = ?`,
@@ -526,6 +568,7 @@ exports.submitQuizAttempt = async (req, res) => {
 exports.approveQuizAttempt = async (req, res) => {
   try {
     const { attemptId } = req.params;
+    const { score } = req.body;
     const instructor_id = req.user.user_id;
 
     const [attempts] = await db.query(
@@ -548,21 +591,23 @@ exports.approveQuizAttempt = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Only instructors can approve grades.' });
     }
 
+    const finalScore = (score !== undefined && score !== null && score !== '') ? parseFloat(score) : (attempt.total_score || 0);
+
     await db.query(
-      `UPDATE quiz_attempts SET approval_status = 'approved' WHERE attempt_id = ?`,
-      [attemptId]
+      `UPDATE quiz_attempts SET total_score = ?, approval_status = 'approved' WHERE attempt_id = ?`,
+      [finalScore, attemptId]
     );
 
     // Notify student
     await createNotification(
       attempt.learner_id,
       'quiz',
-      `Quiz Grade Approved: ${attempt.quiz_title}`,
-      `Your instructor has approved your quiz submission. Score: ${attempt.total_score}`,
+      `Quiz Grade Released: ${attempt.quiz_title}`,
+      `Your instructor has approved your quiz submission. Final Score: ${finalScore}`,
       `/classroom.html?id=${attempt.classroom_id}&tab=quizzes`
     );
 
-    return res.json({ success: true, message: 'Quiz grade approved and score released to student!' });
+    return res.json({ success: true, message: 'Quiz grade approved and score released to student!', total_score: finalScore });
   } catch (error) {
     console.error('Error approving quiz attempt:', error);
     return res.status(500).json({ success: false, message: 'Server error approving grade.' });
@@ -604,6 +649,20 @@ exports.getQuizLeaderboard = async (req, res) => {
       [quizId]
     );
 
+    if (isStaff) {
+      for (const att of attempts) {
+        const [ans] = await db.query(
+          `SELECT qa.question_id, qa.selected_option_id, qa.answer_text, qa.coding_language, qa.marks_awarded, qa.is_correct,
+                  qq.question_text, qq.question_type, qq.question_file_url, qq.points
+           FROM quiz_answers qa
+           JOIN quiz_questions qq ON qa.question_id = qq.question_id
+           WHERE qa.attempt_id = ?`,
+          [att.attempt_id]
+        );
+        att.answers = ans;
+      }
+    }
+
     // For students, hide total_score if approval_status === 'pending'
     const safeLeaderboard = attempts.map(att => {
       if (!isStaff && att.user_id === userId && att.approval_status === 'pending') {
@@ -617,7 +676,7 @@ exports.getQuizLeaderboard = async (req, res) => {
 
     // Fetch Question Answer Key
     const [questions] = await db.query(
-      `SELECT question_id, question_text, question_type, points FROM quiz_questions WHERE quiz_id = ? ORDER BY order_number ASC`,
+      `SELECT question_id, question_text, question_type, question_file_url, points FROM quiz_questions WHERE quiz_id = ? ORDER BY order_number ASC`,
       [quizId]
     );
 
@@ -641,6 +700,154 @@ exports.getQuizLeaderboard = async (req, res) => {
   } catch (error) {
     console.error('Error fetching quiz leaderboard:', error);
     return res.status(500).json({ success: false, message: 'Server error fetching leaderboard.' });
+  }
+};
+
+// 8. Get Single Quiz Details for Editing
+exports.getQuizDetails = async (req, res) => {
+  try {
+    const { quizId } = req.params;
+    const userId = req.user.user_id;
+
+    const [quizzes] = await db.query(`SELECT * FROM quizzes WHERE quiz_id = ? AND is_published = true`, [quizId]);
+    if (!quizzes.length) {
+      return res.status(404).json({ success: false, message: 'Quiz not found.' });
+    }
+
+    const quiz = quizzes[0];
+    const [membership] = await db.query(
+      `SELECT role FROM classroom_members WHERE classroom_id = ? AND user_id = ? AND is_active = true`,
+      [quiz.classroom_id, userId]
+    );
+    if (!membership.length || !['instructor', 'TA'].includes(membership[0].role)) {
+      return res.status(403).json({ success: false, message: 'Only instructors can edit quizzes.' });
+    }
+
+    const [questions] = await db.query(
+      `SELECT * FROM quiz_questions WHERE quiz_id = ? ORDER BY order_number ASC`,
+      [quizId]
+    );
+
+    for (const q of questions) {
+      if (q.question_type === 'mcq' || q.question_type === 'true_false') {
+        const [options] = await db.query(`SELECT * FROM quiz_options WHERE question_id = ?`, [q.question_id]);
+        q.options = options;
+      } else if (q.question_type === 'coding') {
+        const [testCases] = await db.query(`SELECT * FROM quiz_test_cases WHERE question_id = ?`, [q.question_id]);
+        q.test_cases = testCases;
+      }
+    }
+
+    return res.json({ success: true, quiz, questions });
+  } catch (error) {
+    console.error('Error fetching quiz details:', error);
+    return res.status(500).json({ success: false, message: 'Server error fetching quiz details.' });
+  }
+};
+
+// 9. Update Quiz (Instructor)
+exports.updateQuiz = async (req, res) => {
+  const connection = await db.getConnection();
+  try {
+    const { quizId } = req.params;
+    const userId = req.user.user_id;
+    const { title, description, quiz_type, duration_minutes, start_time, end_time, questions } = req.body;
+
+    const [quizzes] = await connection.query(`SELECT * FROM quizzes WHERE quiz_id = ?`, [quizId]);
+    if (!quizzes.length) {
+      return res.status(404).json({ success: false, message: 'Quiz not found.' });
+    }
+
+    const quiz = quizzes[0];
+    const [membership] = await connection.query(
+      `SELECT role FROM classroom_members WHERE classroom_id = ? AND user_id = ? AND is_active = true`,
+      [quiz.classroom_id, userId]
+    );
+    if (!membership.length || !['instructor', 'TA'].includes(membership[0].role)) {
+      return res.status(403).json({ success: false, message: 'Only instructors can update quizzes.' });
+    }
+
+    await connection.beginTransaction();
+
+    let totalMarks = 0;
+    if (Array.isArray(questions)) {
+      questions.forEach(q => { totalMarks += parseInt(q.points || 10, 10); });
+    }
+
+    await connection.query(
+      `UPDATE quizzes SET title = ?, description = ?, quiz_type = ?, duration_minutes = ?, total_marks = ?, start_time = ?, end_time = ? WHERE quiz_id = ?`,
+      [title.trim(), description || null, quiz_type || 'flexible', duration_minutes || 30, totalMarks, start_time || null, end_time || null, quizId]
+    );
+
+    if (questions && Array.isArray(questions) && questions.length > 0) {
+      const [oldQs] = await connection.query(`SELECT question_id FROM quiz_questions WHERE quiz_id = ?`, [quizId]);
+      for (const oq of oldQs) {
+        await connection.query(`DELETE FROM quiz_options WHERE question_id = ?`, [oq.question_id]);
+        await connection.query(`DELETE FROM quiz_test_cases WHERE question_id = ?`, [oq.question_id]);
+      }
+      await connection.query(`DELETE FROM quiz_questions WHERE quiz_id = ?`, [quizId]);
+
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        const [qResult] = await connection.query(
+          `INSERT INTO quiz_questions (quiz_id, question_text, question_type, starter_code, question_file_url, points, order_number) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [quizId, q.question_text, q.question_type || 'mcq', q.starter_code || null, q.question_file_url || null, q.points || 10, i + 1]
+        );
+        const questionId = qResult.insertId;
+
+        if (q.question_type === 'mcq' && Array.isArray(q.options)) {
+          for (const opt of q.options) {
+            await connection.query(
+              `INSERT INTO quiz_options (question_id, option_text, is_correct) VALUES (?, ?, ?)`,
+              [questionId, opt.option_text, opt.is_correct || false]
+            );
+          }
+        } else if (q.question_type === 'coding' && Array.isArray(q.test_cases)) {
+          for (const tc of q.test_cases) {
+            await connection.query(
+              `INSERT INTO quiz_test_cases (question_id, input_data, expected_output, is_hidden, points) VALUES (?, ?, ?, ?, ?)`,
+              [questionId, tc.input_data || '', tc.expected_output || '', tc.is_hidden || false, tc.points || 5]
+            );
+          }
+        }
+      }
+    }
+
+    await connection.commit();
+    return res.json({ success: true, message: 'Quiz updated successfully.' });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error updating quiz:', error);
+    return res.status(500).json({ success: false, message: 'Server error updating quiz.' });
+  } finally {
+    connection.release();
+  }
+};
+
+// 10. Delete Quiz (Instructor)
+exports.deleteQuiz = async (req, res) => {
+  try {
+    const { quizId } = req.params;
+    const userId = req.user.user_id;
+
+    const [quizzes] = await db.query(`SELECT classroom_id FROM quizzes WHERE quiz_id = ?`, [quizId]);
+    if (!quizzes.length) {
+      return res.status(404).json({ success: false, message: 'Quiz not found.' });
+    }
+
+    const [membership] = await db.query(
+      `SELECT role FROM classroom_members WHERE classroom_id = ? AND user_id = ? AND is_active = true`,
+      [quizzes[0].classroom_id, userId]
+    );
+    if (!membership.length || !['instructor', 'TA'].includes(membership[0].role)) {
+      return res.status(403).json({ success: false, message: 'Only instructors can delete quizzes.' });
+    }
+
+    await db.query(`UPDATE quizzes SET is_published = false WHERE quiz_id = ?`, [quizId]);
+    return res.json({ success: true, message: 'Quiz deleted successfully.' });
+  } catch (error) {
+    console.error('Error deleting quiz:', error);
+    return res.status(500).json({ success: false, message: 'Server error deleting quiz.' });
   }
 };
 
