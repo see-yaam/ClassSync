@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const token = getAuthToken();
   const isAuth = !!token;
 
-  // UI Sections & Tabs
+  // UI Sections & Tabs (legacy refs kept for compatibility)
   const browseTab = document.getElementById('view-browse-tab');
   const dashboardTab = document.getElementById('view-dashboard-tab');
   const sectionBrowse = document.getElementById('section-browse');
@@ -22,9 +22,47 @@ document.addEventListener('DOMContentLoaded', () => {
   const paidEnrollModal = document.getElementById('paid-enroll-modal');
   const loginPromptModal = document.getElementById('login-prompt-modal');
 
-  // Auth elements setup
+  // ── Landing / Auth visibility ──────────────────────────────────────────
+  const landingWrapper = document.getElementById('landing-wrapper');
+  const authTopBar    = document.getElementById('auth-top-bar');
+  const coursesDivider = document.getElementById('courses-divider');
+  const guestNudge    = document.getElementById('guest-signup-nudge');
+  const signupLinkCourses = document.getElementById('signup-link-courses');
+
   if (isAuth) {
-    document.querySelectorAll('.auth-only').forEach(el => el.style.display = 'inline-flex');
+    // Logged-in: hide landing hero, show auth top bar; hide guest sign-up nudge
+    if (landingWrapper) landingWrapper.style.display = 'none';
+    if (authTopBar)    authTopBar.style.display = 'flex';
+    if (coursesDivider) coursesDivider.style.display = 'none';
+    if (guestNudge)    guestNudge.style.display = 'none';
+    if (signupLinkCourses) signupLinkCourses.style.display = 'none';
+  } else {
+    // Guest: show landing hero, hide auth top bar
+    if (landingWrapper) landingWrapper.style.display = 'block';
+    if (authTopBar)    authTopBar.style.display = 'none';
+    if (guestNudge)    guestNudge.style.display = 'block';
+    // Load live stats into hero
+    loadHeroStats();
+  }
+
+  // Load live platform stats into hero section (guests only)
+  async function loadHeroStats() {
+    try {
+      const res = await apiFetch('/courses/search?q=&type=all');
+      const courses = Array.isArray(res.data) ? res.data : [];
+      const totalCourses = courses.length;
+      const totalStudents = courses.reduce((sum, c) => sum + (parseInt(c.member_count) || 0), 0);
+
+      const elCourses = document.getElementById('stat-courses');
+      const elStudents = document.getElementById('stat-students');
+      const elClassrooms = document.getElementById('stat-classrooms');
+
+      if (elCourses) elCourses.textContent = totalCourses + '+';
+      if (elStudents) elStudents.textContent = totalStudents > 0 ? totalStudents + '+' : '—';
+      if (elClassrooms) elClassrooms.textContent = totalCourses + '+';
+    } catch (_) {
+      // silently fail — stats are non-critical
+    }
   }
 
   // Tab View Navigation
