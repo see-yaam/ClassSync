@@ -19,8 +19,8 @@ Lecturer, Department of CSE, United International University
 
 **Project Links & Demonstrations:**
 - **GitHub Repository:** [https://github.com/see-yaam/ClassSync](https://github.com/see-yaam/ClassSync)
-- **Live Vercel Frontend Deployment:** [https://class-sync-ten.vercel.app](https://class-sync-ten.vercel.app)
-- **YouTube Video Demonstration:** [https://youtu.be/YOUR_DEMO_VIDEO_LINK_HERE](https://youtu.be/YOUR_DEMO_VIDEO_LINK_HERE)
+- **Live Vercel Frontend Deployment:** [https://classsync-classroom.vercel.app](https://classsync-classroom.vercel.app)
+- **YouTube Video Demonstration:** [https://youtu.be/YVOAAkOCyW8](https://youtu.be/YVOAAkOCyW8)
 
 ---
 
@@ -101,345 +101,137 @@ Every single module implemented in ClassSync was constructed around relational d
 ---
 
 ### 2.1 Multi-Tenant Classroom Creation & Contextual Role Management
-* **Feature Description:** Users register once and can be an Instructor in one classroom while simultaneously being a Learner or Teaching Assistant (TA) in another classroom. When an instructor creates a classroom, the system generates a distinct room number and password. Members enroll via room credentials and are bound in `classroom_members`.
-* **Primary Tables:** `classrooms`, `classroom_members`, `users`
-* **Underlying SQL Query:**
-```sql
--- Creating a new classroom
-INSERT INTO classrooms (creator_id, room_number, room_password, classroom_name, description, visibility, is_paid, price, cover_photo_url, attendance_threshold_percent)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+Users can create, customize, and archive classrooms. Each classroom generates a unique room number and password. The system supports public/private visibility and contextual role determination (a user can be an instructor in one room and a learner in another).
 
--- Associating the creator as the Primary Instructor
-INSERT INTO classroom_members (user_id, classroom_id, role)
-VALUES (?, ?, 'instructor');
+The database operations involve `INSERT` statements to create new classrooms and initialize the creator with the `'instructor'` role in the membership table. A multi-table `SELECT` with `INNER JOIN` operations and correlated subqueries retrieves classrooms, creator metadata, and active learner alert states. `UPDATE` statements manage room settings and active status. The primary tables are `classrooms`, `classroom_members`, and `users`.
 
--- Fetching all classrooms belonging to a user with alert status and creator profile
-SELECT c.classroom_id, c.classroom_name, c.description, c.room_number, c.room_password,
-       c.visibility, c.is_paid, c.price, c.cover_photo_url,
-       c.creator_id, u.full_name AS creator_name, cm.role, cm.joined_at,
-       (SELECT la.alert_type FROM learner_alerts la 
-        WHERE la.classroom_id = c.classroom_id AND la.learner_id = ? 
-        AND la.is_resolved = false 
-        ORDER BY la.created_at DESC LIMIT 1) AS active_alert_type
-FROM classroom_members cm
-JOIN classrooms c ON cm.classroom_id = c.classroom_id
-JOIN users u ON c.creator_id = u.user_id
-WHERE cm.user_id = ? AND cm.is_active = true AND c.is_active = true
-ORDER BY cm.joined_at DESC;
-```
+Implementation resides in `src/controllers/classroomController.js`, `src/routes/classroomRoutes.js`, and `public/js/classroom.js`.
 
 ---
 
 ### 2.2 Paid Classroom Enrollment with Payment Verification Workflow
-* **Feature Description:** Instructors can mark courses as `Paid` with a price in BDT. Students submit payment credentials (Bkash/Nagad/Rocket phone number and Transaction ID). The request remains in `pending` status until reviewed by the instructor or TA, which either activates their enrollment or rejects it.
-* **Primary Tables:** `enrollment_requests`, `classroom_members`, `users`, `classrooms`
-* **Underlying SQL Query:**
-```sql
--- Student submits payment transaction details
-INSERT INTO enrollment_requests (classroom_id, user_id, payment_method, payer_phone_number, transaction_id, status)
-VALUES (?, ?, ?, ?, ?, 'pending');
+Instructors can designate classrooms as paid courses with a specified enrollment fee in BDT. Prospective students submit payment credentials including payment gateway method, sender phone number, and transaction ID. Instructors and TAs review and approve or reject enrollment requests.
 
--- Instructor views pending requests with student details and previous reviewer
-SELECT er.request_id, er.classroom_id, er.user_id, er.payment_method,
-       er.payer_phone_number, er.transaction_id, er.status, er.requested_at,
-       er.reviewed_at, u.full_name AS student_name, u.email AS student_email,
-       u.profile_picture_url AS student_avatar, r.full_name AS reviewer_name
-FROM enrollment_requests er
-JOIN users u ON er.user_id = u.user_id
-LEFT JOIN users r ON er.reviewed_by = r.user_id
-WHERE er.classroom_id = ?
-ORDER BY CASE er.status WHEN 'pending' THEN 1 ELSE 2 END, er.requested_at DESC;
+The database operations involve `INSERT` statements to record pending payment submissions in the enrollment requests table, `SELECT` queries with `INNER JOIN` on `users` and a `LEFT JOIN` on reviewer profiles to list pending requests, and `UPDATE` statements upon approval that update request status and insert the student into `classroom_members` as a `'learner'`. The primary tables are `enrollment_requests`, `classroom_members`, `users`, and `classrooms`.
 
--- On Approval: Add student as learner and update status
-UPDATE enrollment_requests 
-SET status = 'approved', reviewed_by = ?, reviewed_at = NOW() 
-WHERE request_id = ?;
-
-INSERT INTO classroom_members (user_id, classroom_id, role)
-VALUES (?, ?, 'learner');
-```
+Implementation resides in `src/controllers/classroomController.js`, `src/routes/classroomRoutes.js`, and `public/js/classroom.js`.
 
 ---
 
-### 2.3 Homework Assignment & Structured Task Formulation
-* **Feature Description:** Instructors build homework sets containing multiple tasks/questions. Tasks support rich text descriptions, starter code templates, and external file link submissions. Late submissions are flagged against the assignment's deadline timestamp.
-* **Primary Tables:** `homework`, `questions`, `users`
-* **Underlying SQL Query:**
-```sql
--- Listing homework sets with dynamic question count and user submission count
-SELECT h.homework_id, h.classroom_id, h.title, h.description, h.total_points, h.deadline,
-       h.created_by, h.is_published, h.published_at, h.created_at,
-       u.full_name AS creator_name,
-       (SELECT COUNT(*) FROM questions q WHERE q.homework_id = h.homework_id) AS question_count,
-       (SELECT COUNT(DISTINCT s.question_id) FROM submissions s 
-        JOIN questions q ON s.question_id = q.question_id 
-        WHERE q.homework_id = h.homework_id AND s.learner_id = ?) AS submitted_count
-FROM homework h
-JOIN users u ON h.created_by = u.user_id
-WHERE h.classroom_id = ? AND h.is_active = true;
-```
+### 2.3 Homework Assignment & Task Formulation
+Instructors can create, edit, publish or unpublish, and archive homework sets. Each homework set contains individual tasks or questions that support text prompts, code challenges with starter code templates, or uploaded document formats. Deadlines are configured per homework with automatic late submission detection.
+
+The database operations involve `INSERT` statements to add homework sets and questions, `SELECT` statements with subqueries joining `questions` and `submissions` to count total tasks and student submission progress, and `UPDATE` statements to modify homework properties, publication state, or active status. The primary tables are `homework`, `questions`, and `users`.
+
+Implementation resides in `src/controllers/homeworkController.js`, `src/routes/homeworkRoutes.js`, `public/js/classroom.js`, and `public/js/homework.js`.
 
 ---
 
-### 2.4 Multi-Language Automated Code Evaluation Engine (Piston API Sandbox)
-* **Feature Description:** Students write and submit source code directly inside an in-browser code editor across 13 programming languages (Python, C, C++, Java, JavaScript, TypeScript, C#, Go, Rust, Ruby, PHP, Kotlin, Swift). The platform sends code to the Piston execution sandbox against both Public and Hidden test cases, computing execution runtime, memory limits, and automated points.
-* **Primary Tables:** `questions`, `test_cases`, `submissions`, `grades`
-* **Underlying SQL Query:**
-```sql
--- Retrieving all test cases for execution (Public + Hidden)
-SELECT * FROM test_cases WHERE question_id = ? ORDER BY order_number ASC, test_case_id ASC;
+### 2.4 Multi-Language Automated Code Evaluation Engine
+Learners can write, test, and submit source code directly inside an in-browser code editor supporting 13 programming languages (Python, C, C++, Java, JavaScript, TypeScript, C#, Go, Rust, Ruby, PHP, Kotlin, Swift). Code is compiled and evaluated remotely using Piston API against instructor-defined public and hidden test cases.
 
--- Storing student submission and automated evaluation output
-UPDATE submissions 
-SET auto_eval_status = 'done', auto_eval_score = ?, auto_eval_results = ?, auto_eval_at = NOW()
-WHERE submission_id = ?;
+The database operations involve `SELECT` queries retrieving all test cases ordered by sequence, `UPDATE` queries updating submission records with execution outcome, earned points, execution timestamps, and raw JSON evaluation output, and `INSERT` or `UPDATE` statements on `grades` setting auto-evaluated scores with `'auto_pending'` approval status. The primary tables are `questions`, `test_cases`, `submissions`, and `grades`.
 
--- Inserting auto-grade into grades table as draft for instructor approval
-INSERT INTO grades (submission_id, instructor_id, score, feedback, is_draft, auto_score, approval_status)
-VALUES (?, ?, ?, ?, true, ?, 'auto_pending')
-ON DUPLICATE KEY UPDATE auto_score = VALUES(auto_score), approval_status = 'auto_pending', is_draft = true;
-```
+Implementation resides in `src/controllers/autoEvalController.js`, `src/routes/autoEvalRoutes.js`, `src/utils/pistonApi.js`, and `public/js/homework.js`.
 
 ---
 
-### 2.5 Codeforces-Style Submission Matrix & Real-Time Progress Tracking
-* **Feature Description:** A 2D pivot grid rendering every student on one axis and every assignment question on the other. Cells are color-coded (Green for on-time, Orange for late, Red/Gray for missing). Clicking any cell opens the submission drawer.
-* **Primary Tables:** `classroom_members`, `users`, `questions`, `submissions`, `grades`
-* **Underlying SQL Query:**
-```sql
--- Fetching all submissions and grade statuses across all homework questions
-SELECT s.submission_id, s.question_id, s.learner_id, s.submitted_at, s.is_late, s.penalty_applied,
-       g.grade_id, g.score, g.feedback, g.is_draft, g.status
-FROM submissions s
-JOIN questions q ON s.question_id = q.question_id
-JOIN homework h ON q.homework_id = h.homework_id
-LEFT JOIN grades g ON s.submission_id = g.submission_id
-WHERE h.classroom_id = ?;
-```
+### 2.5 Codeforces-Style Submission Matrix & Progress Tracking
+Instructors and TAs have access to an aggregated 2D submission pivot matrix rendering students along one axis and assignment tasks along the other. Matrix cells are color-coded to distinguish on-time submissions, late submissions, and missing tasks with direct links to student work.
+
+The database operations involve multi-table `SELECT` statements utilizing `JOIN` operations across `submissions`, `questions`, `homework`, and `grades`, filtered by classroom ID. Grouping and mapping logic correlates student records against each task cell. The primary tables are `classroom_members`, `users`, `questions`, `submissions`, and `grades`.
+
+Implementation resides in `src/controllers/submissionController.js`, `src/routes/submissionRoutes.js`, and `public/js/classroom.js`.
 
 ---
 
-### 2.6 Interactive Live Video Classes & Duration-Based Automated Attendance (Jitsi Meet)
-* **Feature Description:** Integrated live video conferences directly inside the browser using Jitsi Meet API. Students join via single click. The backend continuously tracks connected duration; if a student attends >= 75% (or classroom threshold) of the total scheduled duration, they are automatically marked `Present`. Instructors have full manual override permissions.
-* **Primary Tables:** `live_sessions`, `attendance`, `classrooms`, `users`
-* **Underlying SQL Query:**
-```sql
--- Automated attendance calculation comparing duration against threshold
-SELECT ls.expected_duration, c.attendance_threshold_percent
-FROM live_sessions ls
-JOIN classrooms c ON ls.classroom_id = c.classroom_id
-WHERE ls.session_id = ?;
+### 2.6 Interactive Live Video Classes & Automated Attendance
+Instructors can schedule and launch live video classrooms powered by embedded Jitsi Meet without leaving the platform. The system tracks each participant's connection join and leave times, automatically computing total duration and marking attendance based on the classroom's threshold percentage (default 75%). Instructors can manually override attendance records.
 
--- Updating student attendance with duration
-INSERT INTO attendance (session_id, learner_id, join_time, leave_time, duration_minutes, is_present)
-VALUES (?, ?, ?, ?, ?, ?)
-ON DUPLICATE KEY UPDATE 
-leave_time = VALUES(leave_time), 
-duration_minutes = VALUES(duration_minutes), 
-is_present = VALUES(is_present);
+The database operations involve `INSERT` statements to schedule sessions and record join/leave timestamps, `SELECT` queries joining `live_sessions` and `classrooms` to compare attended duration against session length and attendance threshold rules, and `UPDATE` statements for manual instructor overrides with justification notes. The primary tables are `live_sessions`, `attendance`, `classrooms`, and `users`.
 
--- Teacher Attendance Override Query
-UPDATE attendance 
-SET instructor_override = true, override_present = ?, override_reason = ? 
-WHERE attendance_id = ?;
-```
+Implementation resides in `src/controllers/liveSessionController.js`, `src/routes/liveSessionRoutes.js`, and `public/js/live.js`.
 
 ---
 
-### 2.7 Plagiarism & Source Code Similarity Scanner (Pairwise N-Gram Shingling)
-* **Feature Description:** Scans student submissions across coding assignments. Submissions undergo canonical tokenization, variable normalization, and shingling (3-gram token sequences) to calculate pairwise Jaccard similarity. Submissions with matching thresholds (>75%) are automatically flagged for instructor review with side-by-side diff viewers.
-* **Primary Tables:** `plagiarism_flags`, `submissions`, `questions`, `homework`, `users`
-* **Underlying SQL Query (7-Way Complex Multi-Table Join):**
-```sql
-SELECT pf.*,
-       s1.code_content AS content_1, u1.full_name AS learner_1_name, u1.email AS learner_1_email,
-       s2.code_content AS content_2, u2.full_name AS learner_2_name, u2.email AS learner_2_email,
-       q.question_text, h.title AS homework_title
-FROM plagiarism_flags pf
-JOIN submissions s1 ON pf.submission_id_1 = s1.submission_id
-JOIN submissions s2 ON pf.submission_id_2 = s2.submission_id
-JOIN users u1 ON s1.learner_id = u1.user_id
-JOIN users u2 ON s2.learner_id = u2.user_id
-JOIN questions q ON s1.question_id = q.question_id
-JOIN homework h ON q.homework_id = h.homework_id
-WHERE h.classroom_id = ? AND h.is_active = true
-ORDER BY pf.similarity_score DESC, pf.created_at DESC;
-```
+### 2.7 Plagiarism & Source Code Similarity Scanner
+The system provides automated pairwise source code similarity scanning across student submissions for any given coding assignment. The scanner uses token canonicalization, comment and literal stripping, and n-gram shingling to compute Jaccard similarity percentages, highlighting matching code side-by-side.
+
+The database operations involve `SELECT` statements retrieving all non-empty text and code submissions for an assignment, `DELETE` statements with multi-table joins to purge obsolete comparison flags, `INSERT` statements to record detected matching pairs with similarity scores, and a complex 7-way `SELECT` query joining `plagiarism_flags`, two instances of `submissions`, two instances of `users`, `questions`, and `homework` to render side-by-side diff comparisons. The primary tables are `plagiarism_flags`, `submissions`, `questions`, `homework`, and `users`.
+
+Implementation resides in `src/controllers/plagiarismController.js`, `src/routes/plagiarismRoutes.js`, and `public/js/classroom.js`.
 
 ---
 
 ### 2.8 Scheduled Live & Flexible Window Examination Engine
-* **Feature Description:** A complete online quiz/exam engine. Supports hard-deadline Scheduled Live Exams (opens and closes at an exact moment) and Flexible Window Exams. Includes real-time timer countdown, auto-submission on expiration, MCQ questions with automatic evaluation, True/False questions, and automated coding test case evaluations.
-* **Primary Tables:** `quizzes`, `quiz_questions`, `quiz_options`, `quiz_attempts`, `quiz_answers`, `quiz_test_cases`
-* **Underlying SQL Query:**
-```sql
--- Starting an exam attempt with auto-calculated deadline
-INSERT INTO quiz_attempts (quiz_id, learner_id, started_at, status)
-VALUES (?, ?, NOW(), 'in_progress');
+Instructors can create and publish timed quizzes and comprehensive exams supporting Scheduled Live modes (synchronized start and hard deadlines) and Flexible Window modes. The engine supports Multiple Choice (MCQ), True/False, and Automated Coding questions with real-time countdown timers and auto-submission on expiry.
 
--- Evaluating MCQ answers against correct options
-SELECT qa.answer_id, qa.selected_option_id, qo.is_correct, qq.points
-FROM quiz_answers qa
-JOIN quiz_options qo ON qa.selected_option_id = qo.option_id
-JOIN quiz_questions qq ON qa.question_id = qq.question_id
-WHERE qa.attempt_id = ?;
+The database operations involve `INSERT` statements creating quiz entries, questions, MCQ options, and student attempt records, `SELECT` queries joining `quiz_answers`, `quiz_options`, and `quiz_questions` to calculate marks automatically for objective questions, and `UPDATE` statements updating attempt status, submitted timestamp, and total marks. The primary tables are `quizzes`, `quiz_questions`, `quiz_options`, `quiz_attempts`, `quiz_answers`, and `quiz_test_cases`.
 
--- Updating final score upon submission
-UPDATE quiz_attempts 
-SET status = 'submitted', submitted_at = NOW(), total_score = ? 
-WHERE attempt_id = ?;
-```
+Implementation resides in `src/controllers/quizController.js`, `src/routes/quizRoutes.js`, and `public/js/classroom.js`.
 
 ---
 
-### 2.9 Class Health Dashboard & Automated Learner Warning System (Yellow/Red Risk Flags)
-* **Feature Description:** High-level dashboard aggregating classroom metrics: Class Average, Homework Completion Rate, Attendance Percentage, and submission trends. Automatically detects at-risk students (repeated missed deadlines or low attendance) and allows instructors to issue Yellow (Warning) or Red (Critical Risk) alerts directly to the student's dashboard.
-* **Primary Tables:** `learner_alerts`, `classroom_members`, `users`, `submissions`, `grades`, `attendance`
-* **Underlying SQL Query:**
-```sql
--- At-Risk Learner Detection Query
-SELECT u.user_id, u.full_name, u.email, u.profile_picture_url,
-       (SELECT COUNT(*) FROM learner_alerts la 
-        WHERE la.learner_id = u.user_id AND la.classroom_id = ? AND la.is_resolved = false) AS unresolved_alerts,
-       (SELECT alert_type FROM learner_alerts la 
-        WHERE la.learner_id = u.user_id AND la.classroom_id = ? AND la.is_resolved = false 
-        ORDER BY alert_id DESC LIMIT 1) AS highest_alert
-FROM classroom_members cm
-JOIN users u ON cm.user_id = u.user_id
-WHERE cm.classroom_id = ? AND cm.role = 'learner' AND cm.is_active = true;
+### 2.9 Class Health Dashboard & Automated Learner Warning System
+Instructors have access to high-level diagnostic analytics summarizing classroom performance including average grades, homework completion rates, overall attendance percentages, and inactive student indicators. Instructors can issue formal Yellow (warning) or Red (critical risk) alerts that appear prominently on the student's dashboard.
 
--- Class Overall Attendance Aggregate
-SELECT COUNT(*) AS total_records,
-       SUM(CASE WHEN a.is_present = true OR 
-           (a.instructor_override = true AND a.override_present = true) THEN 1 ELSE 0 END) AS present_records
-FROM attendance a
-JOIN live_sessions ls ON a.session_id = ls.session_id
-WHERE ls.classroom_id = ?;
-```
+The database operations involve aggregate `SELECT` queries using `COUNT`, `SUM`, `AVG`, and `CASE` expressions joining `submissions`, `attendance`, `live_sessions`, and `grades`, as well as `INSERT` statements into `learner_alerts` and correlated subqueries tracking unresolved alert counts per learner. The primary tables are `learner_alerts`, `classroom_members`, `users`, `submissions`, `grades`, and `attendance`.
+
+Implementation resides in `src/controllers/analyticsController.js`, `src/controllers/alertController.js`, `src/routes/analyticsRoutes.js`, and `src/routes/alertRoutes.js`.
 
 ---
 
-### 2.10 Inline Code Review, Grading Approval & Line-Level Feedback System
-* **Feature Description:** Instructors can highlight line ranges on submitted code and leave comments (error/warning/praise). Teachers can review auto-evaluated grades, override scores, and mark feedback before publishing the final grade to the student.
-* **Primary Tables:** `code_reviews`, `grades`, `submissions`, `users`
-* **Underlying SQL Query (5-Way Multi-Table Consolidated Grading Query):**
-```sql
-SELECT 
-    s.submission_id,
-    q.homework_id, h.title AS homework_title,
-    s.question_id, q.question_text AS question_title, q.points AS max_score,
-    s.learner_id, u.full_name AS learner_name, u.email AS learner_email,
-    s.submitted_at, s.is_late, s.submission_type,
-    g.score, g.is_draft, g.status,
-    CASE WHEN g.grade_id IS NOT NULL THEN true ELSE false END AS is_graded
-FROM submissions s
-JOIN questions q ON s.question_id = q.question_id
-JOIN homework h ON q.homework_id = h.homework_id
-JOIN users u ON s.learner_id = u.user_id
-LEFT JOIN grades g ON s.submission_id = g.submission_id
-WHERE h.classroom_id = ?;
-```
+### 2.10 Inline Code Review, Grading Approval & Line-Level Feedback
+Instructors and TAs can review submitted source code, highlight specific line ranges, and attach line-level comments, warnings, or correction notes. In addition, teachers can review auto-evaluated grades, override scores with custom points, and publish final marks to students.
+
+The database operations involve `INSERT` statements to store line-range review comments, `SELECT` queries with multi-table `JOIN` operations across `submissions`, `questions`, `homework`, `users`, and `grades` to populate a consolidated grading review panel, and `UPDATE` queries on `grades` to approve draft auto-scores or record instructor manual overrides. The primary tables are `code_reviews`, `grades`, `submissions`, and `users`.
+
+Implementation resides in `src/controllers/gradeController.js`, `src/controllers/autoEvalController.js`, `src/routes/gradeRoutes.js`, and `public/js/homework.js`.
 
 ---
 
 ### 2.11 Competitive Gamified Leaderboard & Streak Multiplier
-* **Feature Description:** Class-wide leaderboard computing total points earned across all homework assignments. Features a full-marks streak counter (represented with fire badges) that tracks consecutive full-score submissions.
-* **Primary Tables:** `grades`, `submissions`, `questions`, `homework`
-* **Underlying SQL Query:**
-```sql
--- Leaderboard total score calculation
-SELECT SUM(g.score) AS total_score, COUNT(DISTINCT s.question_id) AS submitted_questions
-FROM submissions s
-JOIN questions q ON s.question_id = q.question_id
-JOIN homework h ON q.homework_id = h.homework_id
-JOIN grades g ON s.submission_id = g.submission_id
-WHERE h.classroom_id = ? AND s.learner_id = ? AND g.is_draft = false;
+The platform fosters engagement by ranking enrolled students based on cumulative scores achieved across homework assignments and quizzes. A streak tracking counter increments whenever a student receives full marks on consecutive submissions, awarding flame badge indicators next to their profile.
 
--- Consecutive Full-Mark Streak Verification
-SELECT SUM(g.score) AS earned_pts
-FROM submissions s
-JOIN questions q ON s.question_id = q.question_id
-JOIN grades g ON s.submission_id = g.submission_id
-WHERE q.homework_id = ? AND s.learner_id = ? AND g.is_draft = false;
-```
+The database operations involve aggregate `SELECT` queries joining `submissions`, `questions`, `homework`, and `grades` with `SUM(g.score)` grouped by learner and ordered descending, alongside sequential verification queries that check consecutive assignment submissions for full-point status. The primary tables are `grades`, `submissions`, `questions`, and `homework`.
+
+Implementation resides in `src/controllers/analyticsController.js`, `src/routes/analyticsRoutes.js`, and `public/js/leaderboard.js`.
 
 ---
 
 ### 2.12 Categorized Practice Problem Bank & Solution Vault
-* **Feature Description:** Repository of programming exercises categorized by topic (e.g., Arrays, Graph Theory, DP) and difficulty (`easy`, `medium`, `hard`). Instructors can publish official sample solutions.
-* **Primary Tables:** `problems`, `problem_answers`, `users`
-* **Underlying SQL Query:**
-```sql
-SELECT p.*, u.full_name AS author_name,
-       pa.problem_answer_id, pa.solution_text, pa.solution_file_url
-FROM problems p
-JOIN users u ON p.created_by = u.user_id
-LEFT JOIN problem_answers pa ON p.problem_id = pa.problem_id
-WHERE p.classroom_id = ? AND p.is_active = true
-ORDER BY p.created_at DESC;
-```
+Instructors can curate a repository of standalone practice exercises organized by algorithmic domain (e.g., Arrays, Trees, Dynamic Programming) and difficulty rating (`easy`, `medium`, `hard`). Instructors can publish official sample solutions visible to learners.
+
+The database operations involve `INSERT` statements to add practice problems and corresponding solutions, `SELECT` statements with `LEFT JOIN` on `problem_answers` and `users` to display problem sets alongside author metadata and solution attachments, and `UPDATE` statements to modify problem descriptions or active states. The primary tables are `problems`, `problem_answers`, and `users`.
+
+Implementation resides in `src/controllers/problemController.js`, `src/routes/problemRoutes.js`, and `public/js/problems.js`.
 
 ---
 
 ### 2.13 Peer-to-Peer Learning Resource Sharing & Moderation Workflow
-* **Feature Description:** Learners and instructors can upload reference documents, slides, and web links. Student-submitted resources remain hidden until an instructor or TA reviews and approves them.
-* **Primary Tables:** `resources`, `users`
-* **Underlying SQL Query:**
-```sql
-SELECT r.*, u.full_name AS submitted_by_name, approver.full_name AS approved_by_name
-FROM resources r
-JOIN users u ON r.submitted_by = u.user_id
-LEFT JOIN users approver ON r.approved_by = approver.user_id
-WHERE r.classroom_id = ? AND (r.is_approved = true OR r.submitted_by = ?)
-ORDER BY r.created_at DESC;
-```
+Students and instructors can share study materials, reference links, lecture notes, and documentation. Student-submitted resources remain hidden until an instructor or TA reviews and approves them, ensuring quality and academic relevance.
+
+The database operations involve `INSERT` statements to upload resource links or documents, `SELECT` queries joining `resources` and `users` with conditional filters for approval status or ownership, and `UPDATE` statements executed by instructors to set `is_approved = true` with approver metadata. The primary tables are `resources` and `users`.
+
+Implementation resides in `src/controllers/resourceController.js`, `src/routes/resourceRoutes.js`, and `public/js/classroom.js`.
 
 ---
 
-### 2.14 Scoped Classroom Group Chat & Direct Private Messaging (DM)
-* **Feature Description:** Real-time scoped classroom chat forum for announcements and queries, along with 1-on-1 private messaging between classmates and instructors with unread badges.
-* **Primary Tables:** `classroom_messages`, `direct_messages`, `users`, `classroom_members`
-* **Underlying SQL Query:**
-```sql
--- Classroom Group Chat with member roles
-SELECT m.message_id, m.classroom_id, m.sender_id, m.message_text, m.sent_at,
-       u.full_name AS sender_name, cm.role AS sender_role
-FROM classroom_messages m
-JOIN users u ON m.sender_id = u.user_id
-LEFT JOIN classroom_members cm ON m.sender_id = cm.user_id AND cm.classroom_id = m.classroom_id
-WHERE m.classroom_id = ?
-ORDER BY m.sent_at DESC LIMIT 100;
+### 2.14 Scoped Classroom Group Chat & Direct Private Messaging
+Members can participate in persistent, classroom-scoped group discussions for announcements and questions. Additionally, students and instructors can initiate 1-on-1 private direct messaging threads with unread message badges.
 
--- Private Direct Messages between 2 users
-SELECT dm.*, u_from.full_name AS sender_name, u_to.full_name AS recipient_name
-FROM direct_messages dm
-JOIN users u_from ON dm.sender_id = u_from.user_id
-JOIN users u_to ON dm.recipient_id = u_to.user_id
-WHERE dm.classroom_id = ?
-  AND ((dm.sender_id = ? AND dm.recipient_id = ?) OR (dm.sender_id = ? AND dm.recipient_id = ?))
-ORDER BY dm.sent_at ASC;
-```
+The database operations involve `INSERT` statements into `classroom_messages` and `direct_messages`, `SELECT` queries joining message tables with `users` and `classroom_members` to retrieve sender identities and classroom roles, and `UPDATE` statements to mark private direct messages as read. The primary tables are `classroom_messages`, `direct_messages`, `users`, and `classroom_members`.
+
+Implementation resides in `src/controllers/messageController.js`, `src/routes/messageRoutes.js`, and `public/js/classroom.js`.
 
 ---
 
 ### 2.15 User Identity, 90-Day Contribution Heatmap & Personal Task To-Do Manager
-* **Feature Description:** Profile management featuring custom avatars, bio, social links (GitHub, LinkedIn, Website), password changes, and a GitHub-style 90-day daily submission heatmap. Includes a personal student To-Do list with time deadlines and automatic notifications.
-* **Primary Tables:** `users`, `user_todos`, `submissions`
-* **Underlying SQL Query:**
-```sql
--- 90-Day Submission Activity Heatmap
-SELECT DATE(submitted_at) AS submission_date, COUNT(*) AS count
-FROM submissions
-WHERE learner_id = ? AND submitted_at >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
-GROUP BY DATE(submitted_at)
-ORDER BY submission_date ASC;
+Users maintain customized profiles with profile photos, bios, social links (GitHub, LinkedIn, Website), and password reset capabilities. The dashboard includes a GitHub-style 90-day submission heatmap reflecting daily activity, as well as a personal To-Do list with time deadlines and automatic reminders.
 
--- User Personal To-Dos
-SELECT todo_id, title, priority, due_date, due_time, completed, reminder_sent, created_at
-FROM user_todos
-WHERE user_id = ?
-ORDER BY completed ASC, due_date ASC;
-```
+The database operations involve `SELECT` queries aggregating submissions grouped by `DATE(submitted_at)` across a 90-day sliding window, `INSERT`, `UPDATE`, and `DELETE` queries on `user_todos` for task management, and background scheduled checks updating task reminder flags and generating in-app notifications. The primary tables are `users`, `user_todos`, `submissions`, and `notifications`.
+
+Implementation resides in `src/controllers/userController.js`, `src/controllers/dashboardController.js`, `src/routes/userRoutes.js`, and `public/js/index.js`.
 
 ---
 
