@@ -17,6 +17,11 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // Serve static frontend files from 'public' folder
 app.use(express.static(path.join(__dirname, '../public')));
 
+// Favicon route fallback
+app.get('/favicon.ico', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/favicon.ico'));
+});
+
 // API Routes
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
